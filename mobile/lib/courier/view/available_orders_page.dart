@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:superapp_delivery/core/format.dart';
 import 'package:superapp_delivery/core/load_status.dart';
 import 'package:superapp_delivery/core/widgets/failure_view.dart';
+import 'package:superapp_delivery/core/widgets/load_more.dart';
 import 'package:superapp_delivery/courier/cubit/available_orders_cubit.dart';
 
 class AvailableOrdersPage extends StatelessWidget {
@@ -56,14 +57,27 @@ class AvailableOrdersView extends StatelessWidget {
                     Center(child: Text('No hay pedidos listos por ahora.')),
                   ],
                 )
-              : ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: state.orders.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) => _AvailableOrderCard(
-                    order: state.orders[index],
-                    isClaiming: state.claimingId == state.orders[index].id,
-                    isBusy: state.claimingId != null,
+              : LoadMoreListener(
+                  onEnd: cubit.loadMore,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: state.orders.length + 1,
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      if (index == state.orders.length) {
+                        return PagingFooter(
+                          isLoading: state.isLoadingMore,
+                          failed: state.loadMoreFailed,
+                          onRetry: cubit.loadMore,
+                        );
+                      }
+                      final order = state.orders[index];
+                      return _AvailableOrderCard(
+                        order: order,
+                        isClaiming: state.claimingId == order.id,
+                        isBusy: state.claimingId != null,
+                      );
+                    },
                   ),
                 ),
         );

@@ -6,6 +6,7 @@ export 'package:delivery_api_client/delivery_api_client.dart'
 
 export 'src/auth_repository.dart';
 export 'src/models/order.dart';
+export 'src/models/cursor_page.dart';
 export 'src/models/restaurant.dart';
 export 'src/models/user.dart';
 export 'src/order_repository.dart';

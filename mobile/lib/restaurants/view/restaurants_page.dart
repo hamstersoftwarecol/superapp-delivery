@@ -5,6 +5,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:superapp_delivery/core/format.dart';
 import 'package:superapp_delivery/core/load_status.dart';
 import 'package:superapp_delivery/core/widgets/failure_view.dart';
+import 'package:superapp_delivery/core/widgets/load_more.dart';
+import 'package:superapp_delivery/core/widgets/network_photo.dart';
 import 'package:superapp_delivery/restaurants/cubit/restaurants_cubit.dart';
 
 class RestaurantsPage extends StatelessWidget {
@@ -49,12 +51,25 @@ class RestaurantsView extends StatelessWidget {
                     Center(child: Text('No hay restaurantes abiertos ahora.')),
                   ],
                 )
-              : ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: state.restaurants.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) =>
-                      _RestaurantCard(restaurant: state.restaurants[index]),
+              : LoadMoreListener(
+                  onEnd: cubit.loadMore,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: state.restaurants.length + 1,
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      if (index == state.restaurants.length) {
+                        return PagingFooter(
+                          isLoading: state.isLoadingMore,
+                          failed: state.loadMoreFailed,
+                          onRetry: cubit.loadMore,
+                        );
+                      }
+                      return _RestaurantCard(
+                        restaurant: state.restaurants[index],
+                      );
+                    },
+                  ),
                 ),
         );
       },
@@ -76,42 +91,57 @@ class _RestaurantCard extends StatelessWidget {
       child: InkWell(
         onTap: () => context.push('/restaurants/${restaurant.id}'),
         child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.all(12),
+          child: Row(
             children: [
-              Text(restaurant.name, style: theme.textTheme.titleMedium),
-              if (restaurant.description != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  restaurant.description!,
-                  style: theme.textTheme.bodyMedium,
-                ),
-              ],
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(
-                    Icons.place_outlined,
-                    size: 16,
-                    color: theme.colorScheme.outline,
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      restaurant.address,
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ),
-                ],
+              NetworkPhoto(
+                url: restaurant.thumbnailUrl,
+                semanticLabel: 'Foto de ${restaurant.name}',
+                width: 88,
+                height: 88,
               ),
-              const SizedBox(height: 4),
-              Text(
-                restaurant.deliveryFeeCents == 0
-                    ? 'Envío gratis'
-                    : 'Envío ${formatCents(restaurant.deliveryFeeCents)}',
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: theme.colorScheme.primary,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(restaurant.name, style: theme.textTheme.titleMedium),
+                    if (restaurant.description != null)
+                      Text(
+                        restaurant.description!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.place_outlined,
+                          size: 16,
+                          color: theme.colorScheme.outline,
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            restaurant.address,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      restaurant.deliveryFeeCents == 0
+                          ? 'Envío gratis'
+                          : 'Envío ${formatCents(restaurant.deliveryFeeCents)}',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

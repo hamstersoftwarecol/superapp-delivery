@@ -21,6 +21,8 @@ export type MenuItem = {
   description: string | null;
   price_cents: number;
   is_available: boolean;
+  image_url: string | null;
+  thumbnail_url: string | null;
 };
 
 export type Restaurant = {
@@ -32,6 +34,8 @@ export type Restaurant = {
   longitude: string | null;
   delivery_fee_cents: number;
   is_open: boolean;
+  image_url: string | null;
+  thumbnail_url: string | null;
   menu_items?: MenuItem[];
 };
 
@@ -78,3 +82,15 @@ export type Order = {
 
 export type Resource<T> = { data: T };
 export type Collection<T> = { data: T[] };
+
+/** A page of results using a cursor: follow `next_cursor` for the next one. */
+export type CursorPage<T> = {
+  data: T[];
+  meta: { next_cursor: string | null; prev_cursor: string | null };
+};
+
+/** A page of results using page numbers. */
+export type NumberedPage<T> = {
+  data: T[];
+  meta: { current_page: number; last_page: number; total: number };
+};

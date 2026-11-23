@@ -1,6 +1,7 @@
 import 'package:delivery_api_client/delivery_api_client.dart';
 
 import 'models/order.dart';
+import 'models/cursor_page.dart';
 
 /// Orders for both customers (placing, tracking) and couriers (claiming,
 /// delivering). What each role may do is enforced by the API.
@@ -28,9 +29,10 @@ class OrderRepository {
     return _order(json);
   }
 
-  /// The signed-in user's orders (as customer or as courier), newest first.
-  Future<List<Order>> getOrders() async =>
-      _orders(await _apiClient.get('/orders'));
+  /// One page of the signed-in user's orders (as customer or as courier),
+  /// newest first.
+  Future<CursorPage<Order>> getOrders({String? cursor}) async =>
+      _orderPage(await _apiClient.get('/orders', query: {'cursor': ?cursor}));
 
   Future<Order> getOrder(int id) async =>
       _order(await _apiClient.get('/orders/$id'));
@@ -52,9 +54,14 @@ class OrderRepository {
   Future<Order> release(int id) async =>
       _order(await _apiClient.post('/orders/$id/release'));
 
-  /// Ready orders no courier has taken yet.
-  Future<List<Order>> getAvailableOrders() async =>
-      _orders(await _apiClient.get('/courier/available-orders'));
+  /// One page of the ready orders no courier has taken yet, oldest first.
+  Future<CursorPage<Order>> getAvailableOrders({String? cursor}) async =>
+      _orderPage(
+        await _apiClient.get(
+          '/courier/available-orders',
+          query: {'cursor': ?cursor},
+        ),
+      );
 
   Future<Order> claim(int id) async =>
       _order(await _apiClient.post('/orders/$id/claim'));
@@ -63,8 +70,6 @@ class OrderRepository {
     (json as Map<String, dynamic>)['data'] as Map<String, dynamic>,
   );
 
-  List<Order> _orders(Object? json) => [
-    for (final item in (json as Map<String, dynamic>)['data'] as List)
-      Order.fromJson(item as Map<String, dynamic>),
-  ];
+  CursorPage<Order> _orderPage(Object? json) =>
+      CursorPage.fromJson(json as Map<String, dynamic>, Order.fromJson);
 }

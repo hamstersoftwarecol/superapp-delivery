@@ -15,7 +15,7 @@ class RestaurantController extends Controller
     public function index(): AnonymousResourceCollection
     {
         return RestaurantResource::collection(
-            Restaurant::query()->visible()->orderBy('name')->paginate(20)
+            Restaurant::query()->visible()->orderBy('name')->orderBy('id')->cursorPaginate(20)
         );
     }
 

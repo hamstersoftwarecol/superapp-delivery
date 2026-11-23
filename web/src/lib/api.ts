@@ -34,10 +34,11 @@ export async function apiFetch<T>(
       cache: "no-store",
       headers: {
         Accept: "application/json",
-        ...(body !== undefined && { "Content-Type": "application/json" }),
+        // A FormData body sets its own Content-Type, including the multipart boundary.
+        ...(body !== undefined && !(body instanceof FormData) && { "Content-Type": "application/json" }),
         ...(authToken && { Authorization: `Bearer ${authToken}` }),
       },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
     });
   } catch {
     throw new ApiError(0, "No se pudo conectar con el servidor. Intenta de nuevo.");

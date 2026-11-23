@@ -23,6 +23,8 @@ class MenuItemResource extends JsonResource
             'description' => $this->description,
             'price_cents' => $this->price_cents,
             'is_available' => $this->is_available,
+            'image_url' => $this->imageUrl(),
+            'thumbnail_url' => $this->thumbnailUrl(),
         ];
     }
 }

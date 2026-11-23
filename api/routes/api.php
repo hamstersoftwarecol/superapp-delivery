@@ -5,11 +5,13 @@ use App\Http\Controllers\Api\V1\Admin\AccountStatusController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AvailableOrderController;
 use App\Http\Controllers\Api\V1\MenuItemController;
+use App\Http\Controllers\Api\V1\MenuItemImageController;
 use App\Http\Controllers\Api\V1\OrderClaimController;
 use App\Http\Controllers\Api\V1\OrderController;
 use App\Http\Controllers\Api\V1\OrderReleaseController;
 use App\Http\Controllers\Api\V1\OrderStatusController;
 use App\Http\Controllers\Api\V1\RestaurantController;
+use App\Http\Controllers\Api\V1\RestaurantImageController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -33,6 +35,11 @@ Route::prefix('v1')->group(function () {
             Route::post('restaurants/{restaurant}/menu-items', [MenuItemController::class, 'store']);
             Route::match(['put', 'patch'], 'menu-items/{menuItem}', [MenuItemController::class, 'update']);
             Route::delete('menu-items/{menuItem}', [MenuItemController::class, 'destroy']);
+
+            Route::post('restaurants/{restaurant}/image', [RestaurantImageController::class, 'store'])->middleware('throttle:30,1');
+            Route::delete('restaurants/{restaurant}/image', [RestaurantImageController::class, 'destroy']);
+            Route::post('menu-items/{menuItem}/image', [MenuItemImageController::class, 'store'])->middleware('throttle:60,1');
+            Route::delete('menu-items/{menuItem}/image', [MenuItemImageController::class, 'destroy']);
         });
 
         Route::middleware('active')->group(function () {

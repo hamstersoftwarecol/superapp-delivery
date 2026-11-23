@@ -12,8 +12,10 @@ export type SaveState =
 
 function failTo(path: string, error: unknown): never {
   if (error instanceof ApiError) {
+    // For validation errors the useful text is the first field message.
+    const message = Object.values(error.fieldErrors)[0]?.[0] ?? error.message;
     const separator = path.includes("?") ? "&" : "?";
-    redirect(`${path}${separator}error=${encodeURIComponent(error.message)}`);
+    redirect(`${path}${separator}error=${encodeURIComponent(message)}`);
   }
   throw error;
 }
@@ -152,6 +154,86 @@ export async function deleteMenuItem(formData: FormData): Promise<void> {
 
   try {
     await apiFetch(`/menu-items/${id}`, { method: "DELETE" });
+  } catch (error) {
+    failTo(back, error);
+  }
+
+  revalidatePath("/menu");
+  redirect(back);
+}
+
+/** Rebuilds the upload as a clean multipart body for the API. */
+function photoBody(formData: FormData): FormData | null {
+  const file = formData.get("image");
+
+  if (!(file instanceof File) || file.size === 0) {
+    return null;
+  }
+
+  const body = new FormData();
+  body.set("image", file, file.name);
+
+  return body;
+}
+
+export async function uploadRestaurantPhoto(formData: FormData): Promise<void> {
+  const id = Number(formData.get("restaurantId"));
+  const body = photoBody(formData);
+
+  if (!body) {
+    redirect(`/restaurant?error=${encodeURIComponent("Elige una imagen.")}`);
+  }
+
+  try {
+    await apiFetch(`/restaurants/${id}/image`, { method: "POST", body });
+  } catch (error) {
+    failTo("/restaurant", error);
+  }
+
+  revalidatePath("/restaurant");
+  revalidatePath("/menu");
+  redirect("/restaurant");
+}
+
+export async function removeRestaurantPhoto(formData: FormData): Promise<void> {
+  const id = Number(formData.get("restaurantId"));
+
+  try {
+    await apiFetch(`/restaurants/${id}/image`, { method: "DELETE" });
+  } catch (error) {
+    failTo("/restaurant", error);
+  }
+
+  revalidatePath("/restaurant");
+  revalidatePath("/menu");
+  redirect("/restaurant");
+}
+
+export async function uploadMenuItemPhoto(formData: FormData): Promise<void> {
+  const id = Number(formData.get("id"));
+  const back = `/menu?r=${Number(formData.get("restaurantId"))}`;
+  const body = photoBody(formData);
+
+  if (!body) {
+    redirect(`${back}&error=${encodeURIComponent("Elige una imagen.")}`);
+  }
+
+  try {
+    await apiFetch(`/menu-items/${id}/image`, { method: "POST", body });
+  } catch (error) {
+    failTo(back, error);
+  }
+
+  revalidatePath("/menu");
+  redirect(back);
+}
+
+export async function removeMenuItemPhoto(formData: FormData): Promise<void> {
+  const id = Number(formData.get("id"));
+  const back = `/menu?r=${Number(formData.get("restaurantId"))}`;
+
+  try {
+    await apiFetch(`/menu-items/${id}/image`, { method: "DELETE" });
   } catch (error) {
     failTo(back, error);
   }

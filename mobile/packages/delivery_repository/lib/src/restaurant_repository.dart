@@ -1,5 +1,6 @@
 import 'package:delivery_api_client/delivery_api_client.dart';
 
+import 'models/cursor_page.dart';
 import 'models/restaurant.dart';
 
 class RestaurantRepository {
@@ -8,13 +9,14 @@ class RestaurantRepository {
 
   final DeliveryApiClient _apiClient;
 
-  /// Restaurants that are currently open.
-  Future<List<Restaurant>> getRestaurants() async {
-    final json = await _apiClient.get('/restaurants') as Map<String, dynamic>;
-    return [
-      for (final item in json['data'] as List)
-        Restaurant.fromJson(item as Map<String, dynamic>),
-    ];
+  /// One page of the restaurants that are open. Pass the previous page's
+  /// [CursorPage.nextCursor] as [cursor] to get the following one.
+  Future<CursorPage<Restaurant>> getRestaurants({String? cursor}) async {
+    final json = await _apiClient.get(
+      '/restaurants',
+      query: {'cursor': ?cursor},
+    ) as Map<String, dynamic>;
+    return CursorPage.fromJson(json, Restaurant.fromJson);
   }
 
   /// A restaurant with its available menu.

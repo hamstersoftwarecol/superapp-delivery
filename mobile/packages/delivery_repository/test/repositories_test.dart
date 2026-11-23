@@ -286,20 +286,104 @@ void main() {
       expect(order.statusReason, 'El restaurante no respondió a tiempo.');
     });
 
-    test('getAvailableOrders maps the list', () async {
+    test('getAvailableOrders maps the page and its cursor', () async {
       final repository = OrderRepository(
         apiClient: buildClient(
           (_) async => _json({
             'data': [_orderJson, _orderJson],
+            'meta': {'next_cursor': 'abc', 'prev_cursor': null},
           }),
         ),
       );
 
-      expect(await repository.getAvailableOrders(), hasLength(2));
+      final page = await repository.getAvailableOrders();
+
+      expect(page.items, hasLength(2));
+      expect(page.nextCursor, 'abc');
+      expect(page.hasMore, isTrue);
+    });
+
+    test('getOrders asks for the cursor it is given', () async {
+      late http.Request seen;
+      final repository = OrderRepository(
+        apiClient: buildClient((request) async {
+          seen = request;
+          return _json({
+            'data': [_orderJson],
+            'meta': {'next_cursor': null},
+          });
+        }),
+      );
+
+      final first = await repository.getOrders();
+      expect(seen.url.queryParameters, isEmpty);
+      expect(first.hasMore, isFalse);
+
+      await repository.getOrders(cursor: 'eyJpZCI6M30');
+      expect(seen.url.queryParameters, {'cursor': 'eyJpZCI6M30'});
+    });
+  });
+
+  group('CursorPage', () {
+    test('has no more pages when the cursor is null or missing', () {
+      expect(
+        CursorPage.fromJson({
+          'data': <Object>[],
+          'meta': {'next_cursor': null},
+        }, Order.fromJson).hasMore,
+        isFalse,
+      );
+      expect(
+        CursorPage.fromJson({'data': <Object>[]}, Order.fromJson).hasMore,
+        isFalse,
+      );
     });
   });
 
   group('RestaurantRepository', () {
+    test('getRestaurants maps photos, the page and the cursor', () async {
+      late http.Request seen;
+      final repository = RestaurantRepository(
+        apiClient: buildClient((request) async {
+          seen = request;
+          return _json({
+            'data': [
+              {
+                'id': 1,
+                'name': 'Tacos',
+                'description': null,
+                'address': 'Calle 10',
+                'delivery_fee_cents': 0,
+                'is_open': true,
+                'image_url':
+                    'http://api.test/storage/images/restaurants/a.webp',
+                'thumbnail_url':
+                    'http://api.test/storage/images/restaurants/a_thumb.webp',
+              },
+              {
+                'id': 2,
+                'name': 'Pizza',
+                'description': null,
+                'address': 'Calle 11',
+                'delivery_fee_cents': 0,
+                'is_open': true,
+                'image_url': null,
+                'thumbnail_url': null,
+              },
+            ],
+            'meta': {'next_cursor': 'siguiente'},
+          });
+        }),
+      );
+
+      final page = await repository.getRestaurants(cursor: 'previo');
+
+      expect(seen.url.queryParameters, {'cursor': 'previo'});
+      expect(page.nextCursor, 'siguiente');
+      expect(page.items.first.thumbnailUrl, endsWith('a_thumb.webp'));
+      expect(page.items.last.imageUrl, isNull);
+    });
+
     test('getRestaurant maps the menu', () async {
       final repository = RestaurantRepository(
         apiClient: buildClient(
@@ -329,6 +413,7 @@ void main() {
       final restaurant = await repository.getRestaurant(1);
 
       expect(restaurant.menuItems.single.name, 'Taco');
+      expect(restaurant.menuItems.single.thumbnailUrl, isNull);
       expect(restaurant.deliveryFeeCents, 300000);
     });
   });

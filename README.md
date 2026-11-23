@@ -83,10 +83,21 @@ cp .env.example .env
 composer install
 php artisan key:generate
 php artisan migrate --seed
+php artisan storage:link
 php artisan serve --port=8000
 ```
 
 - En `.env`, ajusta `DB_USERNAME`. Con PostgreSQL de Homebrew suele ser tu usuario de macOS, no `postgres`.
+- `storage:link` publica la carpeta de fotos. Sin él, las imágenes se guardan pero no se ven.
+- **Límite de subida de PHP.** Por defecto PHP solo acepta archivos de 2 MB, y `php artisan serve` ignora las opciones `-d`. Una foto de celular pesa más, y la subida falla con "No se pudo subir la imagen". Para desarrollo, en vez de `artisan serve`, arranca así:
+
+  ```bash
+  cd api/public
+  php -d upload_max_filesize=6M -d post_max_size=8M -d memory_limit=256M \
+    -S 127.0.0.1:8000 ../vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php
+  ```
+
+  (Hay que estar dentro de `public/`.) En producción sube `upload_max_filesize`, `post_max_size` y `memory_limit` en el `php.ini` de PHP-FPM, y `client_max_body_size` en nginx.
 - PostgreSQL y Redis tienen que estar corriendo: `brew services start postgresql@17` y `brew services start redis`.
 - `--seed` carga los datos de demostración (ver más abajo). Es seguro repetirlo: no duplica nada y no hace nada en producción.
 
@@ -155,13 +166,32 @@ Los datos incluyen 7 cuentas, 3 restaurantes con menú y 8 pedidos, uno en cada 
 
 Para volver a empezar desde cero: `php artisan migrate:fresh --seed` (borra toda la base de datos).
 
+## Fotos
+
+Cada restaurante tiene una foto de portada y cada producto una foto, que sube el dueño desde el panel web (pantallas **Restaurante** y **Menú**, también con cuenta en revisión).
+
+- Se aceptan JPG, PNG y WebP de hasta 5 MB, mínimo 200 × 200 y máximo 4096 px por lado. Cualquier otro archivo (SVG, PDF, un script renombrado) se rechaza con un mensaje en español.
+- El servidor no guarda el archivo original: lo vuelve a codificar como WebP, en dos tamaños (completo de hasta 1200 px y miniatura cuadrada de 400 px), corrige la orientación y borra los metadatos (GPS, cámara). Una foto de 3,6 MB queda en unos 500 KB.
+- Los nombres de archivo son aleatorios; al cambiar o quitar una foto, los archivos anteriores se borran.
+- Las respuestas del API traen `image_url` y `thumbnail_url` (`null` si no hay foto). La app usa la miniatura en las listas y la foto completa en el detalle.
+- En desarrollo se guardan en `api/storage/app/public/images` (disco `images`). Variables opcionales: `IMAGES_DISK`, `IMAGES_URL`, `IMAGES_MAX_KB`.
+
+## Paginación
+
+Las listas largas se piden de 20 en 20 con cursor: `GET /restaurants?cursor=...`, y la respuesta trae `meta.next_cursor` (`null` al llegar al final). La app carga la siguiente página al desplazarse (restaurantes, pedidos y pedidos disponibles).
+
+- `GET /orders?scope=active` devuelve todos los pedidos en curso (hasta 100), nunca paginados, para que uno en curso no quede escondido. `scope=history` pagina los terminados. Sin `scope`, pagina todo.
+- El panel del restaurante muestra los pedidos activos y, debajo, el historial con "Más recientes / Más antiguos".
+- `GET /admin/accounts` usa páginas numeradas (50 por página, `?page=`), porque el admin salta entre páginas.
+- Con el cursor, un pedido nuevo no desplaza ni repite los de las páginas siguientes.
+
 ## Pruebas
 
 ```bash
-cd api && php artisan test                                   # 100 pruebas
-cd mobile && flutter test                                    # 41 pruebas
+cd api && php artisan test                                   # 127 pruebas
+cd mobile && flutter test                                    # 68 pruebas
 cd mobile/packages/delivery_api_client && dart test          # 9 pruebas
-cd mobile/packages/delivery_repository && dart test          # 20 pruebas
+cd mobile/packages/delivery_repository && dart test          # 23 pruebas
 cd web && pnpm lint && pnpm build                            # el panel web no tiene pruebas propias
 ```
 
@@ -183,6 +213,7 @@ Autenticación con token (`Authorization: Bearer <token>`). Los precios van en *
 | `POST /restaurants`, `PATCH /restaurants/{id}` | restaurant | Crear y editar (solo el dueño).                     |
 | `POST /restaurants/{id}/menu-items`     | restaurant       | Agregar un producto.                                  |
 | `PATCH` / `DELETE /menu-items/{id}`     | restaurant       | Editar o eliminar un producto.                        |
+| `POST` / `DELETE /restaurants/{id}/image`, `POST` / `DELETE /menu-items/{id}/image` | restaurant | Subir (campo `image`, multipart) o quitar la foto. |
 | `POST /orders`                          | customer         | Hacer un pedido. El servidor calcula los totales.     |
 | `GET /orders`, `GET /orders/{id}`       | cualquiera       | Sus pedidos, según el rol.                            |
 | `PATCH /orders/{id}/status`             | según el estado  | Avanza el pedido (el API valida rol y transición). `reason` es obligatorio al rechazar, cancelar (salvo el cliente) o fallar una entrega. |
@@ -208,6 +239,7 @@ Verificado: el ciclo completo cliente → restaurante → repartidor, en el simu
 Aún no hay:
 
 - **Pagos en línea.** Solo pago contra entrega. Mercado Pago está pensado para más adelante.
+- **Fotos en la nube.** En producción las fotos deberían ir a un almacenamiento externo (S3 o similar; hace falta instalar `league/flysystem-aws-s3-v3` y apuntar `IMAGES_DISK` a él). La app tampoco guarda las fotos en disco: las vuelve a descargar al reiniciar. Fotos de más de 4096 px por lado (cámaras de 48 MP) se rechazan, y no hay búsqueda de restaurantes.
 - **Probado en un teléfono físico** ni compilaciones de producción (HTTPS, iconos, firma de la app).
 - **Notificaciones push** ni mapa/seguimiento por GPS del repartidor. Cuando un pedido se cancela solo, el cliente y el restaurante lo ven al refrescar la pantalla (cada 8 a 10 s), pero nadie recibe un aviso.
 - **Reembolsos y penalizaciones.** Con pago contra entrega no hay dinero que devolver, pero tampoco hay reglas para un repartidor que suelta pedidos con frecuencia.
@@ -215,4 +247,3 @@ Aún no hay:
 - **Correos de producción.** Falta elegir y configurar el proveedor. Tampoco hay correo de verificación al registrarse ni aviso por correo cuando el admin aprueba o rechaza una cuenta.
 - **Panel del admin más allá de las cuentas.** No hay reportes, comisiones ni ver pedidos de todos los restaurantes.
 - **Varios restaurantes por cuenta en el panel web.** El menú permite elegir entre ellos, pero la pantalla "Restaurante" solo edita el primero y no hay forma de crear uno segundo desde ahí.
-- **Repositorio git.** La carpeta aún no está versionada.

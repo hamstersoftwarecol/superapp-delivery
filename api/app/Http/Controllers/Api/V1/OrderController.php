@@ -18,19 +18,30 @@ use Illuminate\Validation\Rule;
 
 class OrderController extends Controller
 {
+    /**
+     * `?scope=active` returns every order still in progress (up to 100, no
+     * pages) so none can hide behind page two. `?scope=history` and no scope
+     * return pages of 20 using a cursor, which stays correct while new orders
+     * keep arriving.
+     */
     public function index(Request $request): AnonymousResourceCollection
     {
         $filters = $request->validate([
             'status' => ['sometimes', Rule::enum(OrderStatus::class)],
+            'scope' => ['sometimes', Rule::in(['active', 'history'])],
         ]);
 
         $orders = $this->visibleTo($request->user())
             ->when($filters['status'] ?? null, fn (Builder $query, string $status) => $query->where('status', $status))
+            ->when(($filters['scope'] ?? null) === 'active', fn (Builder $query) => $query->whereIn('status', $this->statuses(final: false)))
+            ->when(($filters['scope'] ?? null) === 'history', fn (Builder $query) => $query->whereIn('status', $this->statuses(final: true)))
             ->with(['restaurant', 'customer', 'courier', 'items'])
-            ->latest()
-            ->paginate(20);
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
 
-        return OrderResource::collection($orders);
+        return OrderResource::collection(
+            ($filters['scope'] ?? null) === 'active' ? $orders->limit(100)->get() : $orders->cursorPaginate(20)
+        );
     }
 
     public function store(PlaceOrderRequest $request, PlaceOrder $placeOrder): OrderResource
@@ -45,6 +56,18 @@ class OrderController extends Controller
         Gate::authorize('view', $order);
 
         return new OrderResource($order->load(['restaurant', 'customer', 'courier', 'items']));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function statuses(bool $final): array
+    {
+        return collect(OrderStatus::cases())
+            ->filter(fn (OrderStatus $status) => $status->isFinal() === $final)
+            ->map(fn (OrderStatus $status) => $status->value)
+            ->values()
+            ->all();
     }
 
     /**

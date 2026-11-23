@@ -3,16 +3,26 @@
 namespace Tests\Feature;
 
 use App\Enums\OrderStatus;
+use App\Models\Concerns\HasImage;
+use App\Models\MenuItem;
 use App\Models\Order;
 use App\Models\Restaurant;
 use App\Models\User;
 use Database\Seeders\DemoSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class DemoSeederTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Storage::fake('images');
+    }
 
     public function test_it_creates_one_account_per_role_and_every_order_stage(): void
     {
@@ -58,6 +68,30 @@ class DemoSeederTest extends TestCase
             $this->assertNotEmpty($order->status_reason, "{$status->value} sin motivo");
             $this->assertNotNull($order->status_actor);
         }
+    }
+
+    public function test_every_restaurant_and_dish_gets_a_photo_with_its_thumbnail(): void
+    {
+        $this->seed(DemoSeeder::class);
+
+        $disk = Storage::disk('images');
+        foreach ([...Restaurant::all(), ...MenuItem::all()] as $model) {
+            $this->assertNotNull($model->image_path);
+            $disk->assertExists($model->image_path);
+            $disk->assertExists(HasImage::thumbnailPathFor($model->image_path));
+        }
+    }
+
+    public function test_running_the_seeder_after_a_reset_does_not_leave_orphan_photos(): void
+    {
+        $this->seed(DemoSeeder::class);
+        $firstRun = Storage::disk('images')->allFiles();
+
+        // What `migrate:fresh` does to the rows: everything goes, the photo files stay behind.
+        User::query()->delete();
+        $this->seed(DemoSeeder::class);
+
+        $this->assertCount(count($firstRun), Storage::disk('images')->allFiles());
     }
 
     public function test_seeded_order_totals_add_up(): void

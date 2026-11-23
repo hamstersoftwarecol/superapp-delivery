@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:superapp_delivery/core/format.dart';
 import 'package:superapp_delivery/core/load_status.dart';
 import 'package:superapp_delivery/core/widgets/failure_view.dart';
+import 'package:superapp_delivery/core/widgets/load_more.dart';
 import 'package:superapp_delivery/orders/cubit/orders_cubit.dart';
 import 'package:superapp_delivery/orders/view/order_status_x.dart';
 
@@ -53,12 +54,23 @@ class OrdersView extends StatelessWidget {
                     Center(child: Text(emptyMessage)),
                   ],
                 )
-              : ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: state.orders.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) =>
-                      OrderCard(order: state.orders[index]),
+              : LoadMoreListener(
+                  onEnd: cubit.loadMore,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: state.orders.length + 1,
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      if (index == state.orders.length) {
+                        return PagingFooter(
+                          isLoading: state.isLoadingMore,
+                          failed: state.loadMoreFailed,
+                          onRetry: cubit.loadMore,
+                        );
+                      }
+                      return OrderCard(order: state.orders[index]);
+                    },
+                  ),
                 ),
         );
       },

@@ -4,7 +4,8 @@ import { SubmitButton } from "@/components/submit-button";
 import { apiFetch } from "@/lib/api";
 import { requireAdmin } from "@/lib/dal";
 import { formatCents, formatDate } from "@/lib/format";
-import type { AccountStatus, Collection, User, UserRole } from "@/lib/types";
+import type { AccountStatus, NumberedPage, User, UserRole } from "@/lib/types";
+import { Photo } from "@/components/photo";
 import { setAccountStatus } from "./actions";
 
 export const metadata: Metadata = { title: "Cuentas" };
@@ -38,10 +39,11 @@ const statusLabels: Record<AccountStatus, string> = {
 export default async function AdminAccountsPage({ searchParams }: PageProps<"/admin">) {
   await requireAdmin();
 
-  const { tab: tabParam, error } = await searchParams;
+  const { tab: tabParam, error, page: pageParam } = await searchParams;
   const tab = tabs.find((candidate) => candidate.key === tabParam) ?? tabs[0];
-  const query = tab.status ? `?status=${tab.status}` : "";
-  const { data: accounts } = await apiFetch<Collection<User>>(`/admin/accounts${query}`);
+  const requestedPage = Math.max(1, Number.parseInt(typeof pageParam === "string" ? pageParam : "1", 10) || 1);
+  const query = new URLSearchParams({ page: String(requestedPage), ...(tab.status && { status: tab.status }) });
+  const { data: accounts, meta } = await apiFetch<NumberedPage<User>>(`/admin/accounts?${query}`);
 
   return (
     <div className="space-y-6">
@@ -77,9 +79,31 @@ export default async function AdminAccountsPage({ searchParams }: PageProps<"/ad
       ) : (
         <ul className="space-y-3">
           {accounts.map((account) => (
-            <AccountCard key={account.id} account={account} back={`/admin?tab=${tab.key}`} />
+            <AccountCard key={account.id} account={account} back={`/admin?tab=${tab.key}&page=${meta.current_page}`} />
           ))}
         </ul>
+      )}
+
+      {meta.last_page > 1 && (
+        <nav aria-label="Páginas" className="flex items-center justify-between text-sm">
+          {meta.current_page > 1 ? (
+            <Link href={`/admin?tab=${tab.key}&page=${meta.current_page - 1}`} className="font-medium text-orange-700 hover:underline dark:text-orange-400">
+              ← Anterior
+            </Link>
+          ) : (
+            <span />
+          )}
+          <span className="text-zinc-500">
+            Página {meta.current_page} de {meta.last_page} · {meta.total} cuentas
+          </span>
+          {meta.current_page < meta.last_page ? (
+            <Link href={`/admin?tab=${tab.key}&page=${meta.current_page + 1}`} className="font-medium text-orange-700 hover:underline dark:text-orange-400">
+              Siguiente →
+            </Link>
+          ) : (
+            <span />
+          )}
+        </nav>
       )}
     </div>
   );
@@ -112,11 +136,14 @@ function AccountCard({ account, back }: { account: User; back: string }) {
           {account.restaurants && account.restaurants.length > 0 ? (
             <ul className="space-y-1">
               {account.restaurants.map((restaurant) => (
-                <li key={restaurant.id}>
-                  <span className="font-medium">{restaurant.name}</span>
-                  <span className="text-zinc-500">
-                    {" "}
-                    · {restaurant.address} · Envío {formatCents(restaurant.delivery_fee_cents)}
+                <li key={restaurant.id} className="flex items-center gap-3">
+                  <Photo src={restaurant.thumbnail_url} alt={restaurant.name} className="size-12 shrink-0 rounded-lg" />
+                  <span>
+                    <span className="font-medium">{restaurant.name}</span>
+                    <span className="text-zinc-500">
+                      {" "}
+                      · {restaurant.address} · Envío {formatCents(restaurant.delivery_fee_cents)}
+                    </span>
                   </span>
                 </li>
               ))}

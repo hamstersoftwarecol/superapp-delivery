@@ -4,7 +4,8 @@ import { SubmitButton } from "@/components/submit-button";
 import { apiFetch } from "@/lib/api";
 import { requireRestaurantOwner } from "@/lib/dal";
 import { formatCents, formatTime } from "@/lib/format";
-import type { Collection, Order, OrderActor, OrderStatus } from "@/lib/types";
+import type { Collection, CursorPage, Order, OrderActor, OrderStatus } from "@/lib/types";
+import Link from "next/link";
 import { updateOrderStatus } from "../actions";
 import { cancellationReasons, ReasonForm, rejectionReasons } from "./reason-form";
 
@@ -45,10 +46,17 @@ const actorLabels: Record<OrderActor, string> = {
 
 export default async function OrdersPage({ searchParams }: PageProps<"/orders">) {
   await requireRestaurantOwner();
-  const { error } = await searchParams;
-  const { data: orders } = await apiFetch<Collection<Order>>("/orders");
+  const { error, history: historyCursor } = await searchParams;
 
-  const history = orders.filter((order) => order.status in historyLabels);
+  // Orders in progress always come whole, so none can hide on a later page.
+  // The history is paged: its cursor travels in the address (?history=...).
+  const historyQuery = typeof historyCursor === "string" ? `&cursor=${encodeURIComponent(historyCursor)}` : "";
+  const [{ data: orders }, historyPage] = await Promise.all([
+    apiFetch<Collection<Order>>("/orders?scope=active"),
+    apiFetch<CursorPage<Order>>(`/orders?scope=history${historyQuery}`),
+  ]);
+  const history = historyPage.data;
+  const { prev_cursor: newer, next_cursor: older } = historyPage.meta;
 
   return (
     <div>
@@ -86,7 +94,7 @@ export default async function OrdersPage({ searchParams }: PageProps<"/orders">)
         })}
       </div>
 
-      {history.length > 0 && (
+      {(history.length > 0 || newer) && (
         <section className="mt-10" aria-labelledby="history">
           <h2 id="history" className="mb-2 text-sm font-semibold text-zinc-600 dark:text-zinc-400">
             Historial reciente
@@ -110,6 +118,24 @@ export default async function OrdersPage({ searchParams }: PageProps<"/orders">)
               </li>
             ))}
           </ul>
+          {(newer || older) && (
+            <nav aria-label="Páginas del historial" className="mt-3 flex items-center justify-between text-sm">
+              {newer ? (
+                <Link href={`/orders?history=${encodeURIComponent(newer)}`} className="font-medium text-orange-700 hover:underline dark:text-orange-400">
+                  ← Más recientes
+                </Link>
+              ) : (
+                <span />
+              )}
+              {older ? (
+                <Link href={`/orders?history=${encodeURIComponent(older)}`} className="font-medium text-orange-700 hover:underline dark:text-orange-400">
+                  Más antiguos →
+                </Link>
+              ) : (
+                <span />
+              )}
+            </nav>
+          )}
         </section>
       )}
     </div>

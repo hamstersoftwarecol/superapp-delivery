@@ -19,8 +19,9 @@ class AvailableOrderController extends Controller
             ->where('status', OrderStatus::Ready)
             ->whereNull('courier_id')
             ->with(['restaurant', 'items'])
-            ->oldest('available_at')
-            ->paginate(20);
+            ->orderBy('available_at')
+            ->orderBy('id')
+            ->cursorPaginate(20);
 
         return OrderResource::collection($orders);
     }

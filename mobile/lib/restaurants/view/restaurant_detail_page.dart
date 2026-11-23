@@ -6,6 +6,7 @@ import 'package:superapp_delivery/cart/cart.dart';
 import 'package:superapp_delivery/core/format.dart';
 import 'package:superapp_delivery/core/load_status.dart';
 import 'package:superapp_delivery/core/widgets/failure_view.dart';
+import 'package:superapp_delivery/core/widgets/network_photo.dart';
 import 'package:superapp_delivery/restaurants/cubit/restaurant_detail_cubit.dart';
 
 class RestaurantDetailPage extends StatelessWidget {
@@ -79,11 +80,27 @@ class _Menu extends StatelessWidget {
       separatorBuilder: (_, _) => const Divider(height: 24),
       itemBuilder: (context, index) {
         if (index == 0) {
-          return Text(
-            restaurant.deliveryFeeCents == 0
-                ? 'Envío gratis · ${restaurant.address}'
-                : 'Envío ${formatCents(restaurant.deliveryFeeCents)} · ${restaurant.address}',
-            style: theme.textTheme.bodySmall,
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (restaurant.imageUrl != null) ...[
+                AspectRatio(
+                  aspectRatio: 3 / 2,
+                  child: NetworkPhoto(
+                    url: restaurant.imageUrl,
+                    semanticLabel: 'Foto de ${restaurant.name}',
+                    width: double.infinity,
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              Text(
+                restaurant.deliveryFeeCents == 0
+                    ? 'Envío gratis · ${restaurant.address}'
+                    : 'Envío ${formatCents(restaurant.deliveryFeeCents)} · ${restaurant.address}',
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
           );
         }
         final item = restaurant.menuItems[index - 1];
@@ -145,6 +162,13 @@ class _MenuItemTile extends StatelessWidget {
 
     return Row(
       children: [
+        NetworkPhoto(
+          url: item.thumbnailUrl,
+          semanticLabel: 'Foto de ${item.name}',
+          width: 72,
+          height: 72,
+        ),
+        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

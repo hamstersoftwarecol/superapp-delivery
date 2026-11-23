@@ -4,23 +4,30 @@ class RestaurantsState extends Equatable {
   const RestaurantsState({
     this.status = LoadStatus.initial,
     this.restaurants = const [],
+    this.nextCursor,
+    this.isLoadingMore = false,
+    this.loadMoreFailed = false,
     this.error,
   });
 
   final LoadStatus status;
   final List<Restaurant> restaurants;
+
+  /// Where the next page starts; `null` when everything has been loaded.
+  final String? nextCursor;
+  final bool isLoadingMore;
+  final bool loadMoreFailed;
   final String? error;
 
-  RestaurantsState copyWith({
-    LoadStatus? status,
-    List<Restaurant>? restaurants,
-    String? error,
-  }) => RestaurantsState(
-    status: status ?? this.status,
-    restaurants: restaurants ?? this.restaurants,
-    error: error,
-  );
+  bool get hasMore => nextCursor != null;
 
   @override
-  List<Object?> get props => [status, restaurants, error];
+  List<Object?> get props => [
+    status,
+    restaurants,
+    nextCursor,
+    isLoadingMore,
+    loadMoreFailed,
+    error,
+  ];
 }

@@ -47,6 +47,17 @@ return [
             'report' => false,
         ],
 
+        // Restaurant and menu photos. The relative URL becomes absolute using the
+        // host of each request, so emulators and phones can reach it too.
+        'images' => [
+            'driver' => 'local',
+            'root' => storage_path('app/public/images'),
+            'url' => env('IMAGES_URL', '/storage/images'),
+            'visibility' => 'public',
+            'throw' => true,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

@@ -1,12 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Field } from "@/components/field";
+import { Photo } from "@/components/photo";
 import { SubmitButton } from "@/components/submit-button";
 import { apiFetch } from "@/lib/api";
 import { requireRestaurantOwner } from "@/lib/dal";
 import { formatCents, inputFromCents } from "@/lib/format";
 import type { Collection, MenuItem, Restaurant } from "@/lib/types";
-import { createMenuItem, deleteMenuItem, toggleMenuItem, updateMenuItem } from "../actions";
+import {
+  createMenuItem,
+  deleteMenuItem,
+  removeMenuItemPhoto,
+  toggleMenuItem,
+  updateMenuItem,
+  uploadMenuItemPhoto,
+} from "../actions";
+import { PhotoUpload } from "../photo-upload";
 
 export const metadata: Metadata = { title: "Menú" };
 
@@ -73,9 +82,12 @@ export default async function MenuPage({ searchParams }: PageProps<"/menu">) {
           {items.map((item) => (
             <li key={item.id} className="p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className={item.is_available ? "" : "opacity-50"}>
-                  <p className="font-medium">{item.name}</p>
-                  {item.description && <p className="text-sm text-zinc-500">{item.description}</p>}
+                <div className={`flex items-center gap-3 ${item.is_available ? "" : "opacity-50"}`}>
+                  <Photo src={item.thumbnail_url} alt={item.name} className="size-16 shrink-0 rounded-lg" />
+                  <div>
+                    <p className="font-medium">{item.name}</p>
+                    {item.description && <p className="text-sm text-zinc-500">{item.description}</p>}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="tabular-nums font-medium">{formatCents(item.price_cents)}</span>
@@ -93,7 +105,7 @@ export default async function MenuPage({ searchParams }: PageProps<"/menu">) {
                 </div>
               </div>
               <details className="mt-2">
-                <summary className="cursor-pointer text-sm text-orange-700 dark:text-orange-400">Editar</summary>
+                <summary className="cursor-pointer text-sm text-orange-700 dark:text-orange-400">Editar y foto</summary>
                 <form action={updateMenuItem} className="mt-3 grid gap-3 sm:grid-cols-[2fr_3fr_1fr_auto] sm:items-end">
                   <input type="hidden" name="id" value={item.id} />
                   <input type="hidden" name="restaurantId" value={selected.id} />
@@ -102,6 +114,15 @@ export default async function MenuPage({ searchParams }: PageProps<"/menu">) {
                   <Field label="Precio" name="price" id={`price-${item.id}`} type="number" step="0.01" min="0.01" defaultValue={inputFromCents(item.price_cents)} required />
                   <SubmitButton>Guardar</SubmitButton>
                 </form>
+                <div className="mt-4 border-t border-zinc-100 pt-4 dark:border-zinc-800">
+                  <PhotoUpload
+                    label="Foto del producto"
+                    hiddenFields={{ id: item.id, restaurantId: selected.id }}
+                    hasPhoto={item.image_url !== null}
+                    upload={uploadMenuItemPhoto}
+                    remove={removeMenuItemPhoto}
+                  />
+                </div>
               </details>
             </li>
           ))}

@@ -25,6 +25,8 @@ class RestaurantResource extends JsonResource
             'longitude' => $this->longitude,
             'delivery_fee_cents' => $this->delivery_fee_cents,
             'is_open' => $this->is_open,
+            'image_url' => $this->imageUrl(),
+            'thumbnail_url' => $this->thumbnailUrl(),
             'menu_items' => MenuItemResource::collection($this->whenLoaded('menuItems')),
         ];
     }

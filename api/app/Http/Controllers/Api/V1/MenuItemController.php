@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Actions\DeleteImage;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\SaveMenuItemRequest;
 use App\Http\Resources\MenuItemResource;
@@ -32,10 +33,11 @@ class MenuItemController extends Controller
         return new MenuItemResource($menuItem);
     }
 
-    public function destroy(MenuItem $menuItem): Response
+    public function destroy(MenuItem $menuItem, DeleteImage $deleteImage): Response
     {
         Gate::authorize('update', $menuItem->restaurant);
 
+        $deleteImage->handle($menuItem->image_path);
         $menuItem->delete();
 
         return response()->noContent();

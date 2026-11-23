@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Actions\StoreImage;
 use App\Enums\OrderActor;
 use App\Enums\OrderStatus;
 use App\Models\MenuItem;
@@ -9,6 +10,7 @@ use App\Models\Order;
 use App\Models\Restaurant;
 use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Local demo data: one account per role, a few restaurants with menus and
@@ -44,6 +46,11 @@ class DemoSeeder extends Seeder
 
             return;
         }
+
+        // Rows from an earlier `migrate:fresh` are gone, so their photos are orphans.
+        $images = Storage::disk(config('delivery.images.disk'));
+        $images->deleteDirectory('restaurants');
+        $images->deleteDirectory('menu-items');
 
         $customer = User::factory()->create([
             'name' => 'Cliente Demo',
@@ -144,16 +151,67 @@ class DemoSeeder extends Seeder
     private function restaurant(User $owner, array $attributes, array $menu): Restaurant
     {
         $restaurant = Restaurant::factory()->for($owner, 'owner')->create($attributes);
+        $store = app(StoreImage::class);
 
-        foreach ($menu as [$name, $description, $priceCents]) {
+        $restaurant->forceFill([
+            'image_path' => $store->handle($this->placeholder(crc32($restaurant->name) % 360, 1200, 800), 'restaurants'),
+        ])->save();
+
+        foreach ($menu as $index => [$name, $description, $priceCents]) {
             MenuItem::factory()->for($restaurant)->create([
                 'name' => $name,
                 'description' => $description,
                 'price_cents' => $priceCents,
+                'image_path' => $store->handle($this->placeholder(crc32($name) % 360, 800, 800), 'menu-items'),
             ]);
         }
 
         return $restaurant;
+    }
+
+    /**
+     * A plain picture for the demo: a coloured background with a plate on it.
+     * Real photos come from the restaurants themselves.
+     */
+    private function placeholder(int $hue, int $width, int $height): string
+    {
+        $image = imagecreatetruecolor($width, $height);
+
+        for ($y = 0; $y < $height; $y++) {
+            [$r, $g, $b] = $this->hslToRgb($hue, 0.6, 0.78 - 0.25 * ($y / $height));
+            imageline($image, 0, $y, $width, $y, imagecolorallocate($image, $r, $g, $b));
+        }
+
+        $plate = (int) (min($width, $height) * 0.62);
+        imagefilledellipse($image, intdiv($width, 2), intdiv($height, 2), $plate, $plate, imagecolorallocate($image, 250, 250, 250));
+        [$r, $g, $b] = $this->hslToRgb($hue, 0.7, 0.45);
+        imagefilledellipse($image, intdiv($width, 2), intdiv($height, 2), (int) ($plate * 0.62), (int) ($plate * 0.62), imagecolorallocate($image, $r, $g, $b));
+
+        ob_start();
+        imagepng($image);
+
+        return (string) ob_get_clean();
+    }
+
+    /**
+     * @return array{0: int, 1: int, 2: int}
+     */
+    private function hslToRgb(int $hue, float $saturation, float $lightness): array
+    {
+        $c = (1 - abs(2 * $lightness - 1)) * $saturation;
+        $x = $c * (1 - abs(fmod($hue / 60, 2) - 1));
+        $m = $lightness - $c / 2;
+
+        [$r, $g, $b] = match (intdiv($hue, 60) % 6) {
+            0 => [$c, $x, 0],
+            1 => [$x, $c, 0],
+            2 => [0, $c, $x],
+            3 => [0, $x, $c],
+            4 => [$x, 0, $c],
+            default => [$c, 0, $x],
+        };
+
+        return [(int) round(($r + $m) * 255), (int) round(($g + $m) * 255), (int) round(($b + $m) * 255)];
     }
 
     /**
