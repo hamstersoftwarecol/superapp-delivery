@@ -3,13 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const links = [
-  { href: "/orders", label: "Pedidos" },
-  { href: "/menu", label: "Menú" },
-  { href: "/restaurant", label: "Restaurante" },
-];
+export type NavLink = { href: string; label: string };
 
-export function NavLinks() {
+export function NavLinks({ links }: { links: NavLink[] }) {
   const pathname = usePathname();
 
   return (

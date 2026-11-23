@@ -1,4 +1,6 @@
-export type UserRole = "customer" | "restaurant" | "courier";
+export type UserRole = "customer" | "restaurant" | "courier" | "admin";
+
+export type AccountStatus = "pending" | "approved" | "suspended";
 
 export type User = {
   id: number;
@@ -6,6 +8,10 @@ export type User = {
   email: string;
   phone: string | null;
   role: UserRole;
+  status: AccountStatus;
+  status_note: string | null;
+  created_at: string;
+  restaurants?: Restaurant[];
 };
 
 export type MenuItem = {

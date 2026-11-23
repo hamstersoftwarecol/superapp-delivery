@@ -52,6 +52,15 @@ class AuthCubit extends Cubit<AuthState> {
     ),
   );
 
+  /// Re-reads the account, e.g. to find out an admin approved it.
+  Future<void> refresh() async {
+    try {
+      await _authRepository.refreshUser();
+    } on Object catch (error) {
+      emit(state.copyWith(error: errorMessage(error)));
+    }
+  }
+
   Future<void> logout() => _authRepository.logout();
 
   Future<void> _submit(Future<User> Function() action) async {

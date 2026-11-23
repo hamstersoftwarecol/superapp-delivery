@@ -15,7 +15,10 @@ GoRouter buildRouter(AuthCubit authCubit) {
     refreshListenable: _CubitListenable(authCubit),
     redirect: (context, state) {
       final location = state.matchedLocation;
-      final isAuthRoute = location == '/login' || location == '/register';
+      final isAuthRoute =
+          location == '/login' ||
+          location == '/register' ||
+          location == '/forgot-password';
 
       return switch (authCubit.state.status) {
         AuthStatus.unknown => location == '/splash' ? null : '/splash',
@@ -28,6 +31,10 @@ GoRouter buildRouter(AuthCubit authCubit) {
       GoRoute(path: '/splash', builder: (_, _) => const SplashPage()),
       GoRoute(path: '/login', builder: (_, _) => const LoginPage()),
       GoRoute(path: '/register', builder: (_, _) => const RegisterPage()),
+      GoRoute(
+        path: '/forgot-password',
+        builder: (_, _) => const ForgotPasswordPage(),
+      ),
       GoRoute(path: '/', builder: (_, _) => const HomePage()),
       GoRoute(
         path: '/restaurants/:id',

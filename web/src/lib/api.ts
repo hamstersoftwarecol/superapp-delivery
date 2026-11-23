@@ -9,6 +9,7 @@ export class ApiError extends Error {
     public readonly status: number,
     message: string,
     public readonly fieldErrors: Record<string, string[]> = {},
+    public readonly code?: string,
   ) {
     super(message);
   }
@@ -54,8 +55,11 @@ export async function apiFetch<T>(
     }
     throw new ApiError(
       response.status,
-      json?.message ?? "Ocurrió un error inesperado.",
+      response.status === 429
+        ? "Demasiados intentos. Espera un minuto e inténtalo de nuevo."
+        : (json?.message ?? "Ocurrió un error inesperado."),
       json?.errors ?? {},
+      json?.code,
     );
   }
 

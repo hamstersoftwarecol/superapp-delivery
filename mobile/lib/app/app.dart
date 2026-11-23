@@ -45,6 +45,7 @@ class _AppState extends State<App> {
   Widget build(BuildContext context) {
     return MultiRepositoryProvider(
       providers: [
+        RepositoryProvider.value(value: widget.authRepository),
         RepositoryProvider.value(value: widget.restaurantRepository),
         RepositoryProvider.value(value: widget.orderRepository),
       ],

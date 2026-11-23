@@ -108,6 +108,50 @@ void main() {
       },
     );
 
+    test('forgotPassword asks for the email without sending a token', () async {
+      await storage.write('stale');
+      late http.Request seen;
+      final repository = AuthRepository(
+        apiClient: buildClient((request) async {
+          seen = request;
+          return _json({'message': 'Revisa tu correo'});
+        }),
+        tokenStorage: storage,
+      );
+
+      final message = await repository.forgotPassword(
+        email: 'ana@example.test',
+      );
+
+      expect(message, 'Revisa tu correo');
+      expect(seen.url.path, '/api/v1/auth/forgot-password');
+      expect(seen.headers.containsKey('Authorization'), isFalse);
+      expect(jsonDecode(seen.body), {'email': 'ana@example.test'});
+    });
+
+    test('refreshUser emits the account with its new status', () async {
+      await storage.write('abc');
+      final repository = AuthRepository(
+        apiClient: buildClient(
+          (_) async => _json({
+            'data': {..._userJson, 'role': 'courier', 'status': 'approved'},
+          }),
+        ),
+        tokenStorage: storage,
+      );
+      final emitted = expectLater(
+        repository.user,
+        emits(
+          isA<User>().having((u) => u.status, 'status', AccountStatus.approved),
+        ),
+      );
+
+      final user = await repository.refreshUser();
+
+      expect(user.role, UserRole.courier);
+      await emitted;
+    });
+
     test('logout clears the token even if the server call fails', () async {
       await storage.write('abc');
       final repository = AuthRepository(
@@ -211,6 +255,27 @@ void main() {
 
       expect(restaurant.menuItems.single.name, 'Taco');
       expect(restaurant.deliveryFeeCents, 300000);
+    });
+  });
+
+  group('User', () {
+    test('reads the review status of the account', () {
+      for (final status in AccountStatus.values) {
+        final user = User.fromJson({..._userJson, 'status': status.name});
+        expect(user.status, status);
+      }
+      expect(
+        User.fromJson({..._userJson, 'status': 'pending'}).isPending,
+        isTrue,
+      );
+    });
+
+    test('treats a missing status as approved (older servers)', () {
+      expect(User.fromJson(_userJson).status, AccountStatus.approved);
+    });
+
+    test('knows the admin role', () {
+      expect(UserRole.fromJson('admin'), UserRole.admin);
     });
   });
 

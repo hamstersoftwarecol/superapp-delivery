@@ -125,6 +125,10 @@ class _LoginViewState extends State<LoginView> {
                     ),
                     const SizedBox(height: 8),
                     TextButton(
+                      onPressed: () => context.go('/forgot-password'),
+                      child: const Text('¿Olvidaste tu contraseña?'),
+                    ),
+                    TextButton(
                       onPressed: () => context.go('/register'),
                       child: const Text('¿No tienes cuenta? Regístrate'),
                     ),

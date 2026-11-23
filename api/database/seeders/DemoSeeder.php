@@ -24,6 +24,12 @@ class DemoSeeder extends Seeder
 
     public const OWNER_EMAIL = 'restaurante@demo.test';
 
+    public const ADMIN_EMAIL = 'admin@demo.test';
+
+    public const PENDING_COURIER_EMAIL = 'repartidor-pendiente@demo.test';
+
+    public const PENDING_OWNER_EMAIL = 'restaurante-pendiente@demo.test';
+
     public function run(): void
     {
         if (app()->environment('production')) {
@@ -56,6 +62,25 @@ class DemoSeeder extends Seeder
             'name' => 'Don Pepe',
             'email' => self::OWNER_EMAIL,
             'phone' => '3009876543',
+            'password' => self::PASSWORD,
+        ]);
+
+        User::factory()->admin()->create([
+            'name' => 'Admin Demo',
+            'email' => self::ADMIN_EMAIL,
+            'password' => self::PASSWORD,
+        ]);
+
+        // Waiting for an admin's review, so the approval screens have something to show.
+        User::factory()->courier()->pending()->create([
+            'name' => 'Repartidor Pendiente',
+            'email' => self::PENDING_COURIER_EMAIL,
+            'password' => self::PASSWORD,
+        ]);
+
+        User::factory()->restaurantOwner()->pending()->create([
+            'name' => 'Restaurante Pendiente',
+            'email' => self::PENDING_OWNER_EMAIL,
             'password' => self::PASSWORD,
         ]);
 

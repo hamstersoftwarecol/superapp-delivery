@@ -27,6 +27,30 @@ class AuthTest extends TestCase
         $this->assertDatabaseHas('users', ['email' => 'ana@example.com', 'role' => UserRole::Courier->value]);
     }
 
+    public function test_customers_are_approved_at_once_but_restaurants_and_couriers_start_pending(): void
+    {
+        foreach (['customer' => 'approved', 'restaurant' => 'pending', 'courier' => 'pending'] as $role => $status) {
+            $this->postJson('/api/v1/auth/register', [
+                'name' => "Alguien {$role}",
+                'email' => "{$role}@example.test",
+                'password' => 'secret-password',
+                'role' => $role,
+            ])->assertCreated()->assertJsonPath('user.status', $status);
+        }
+    }
+
+    public function test_nobody_can_register_as_an_admin(): void
+    {
+        $this->postJson('/api/v1/auth/register', [
+            'name' => 'Intruso',
+            'email' => 'intruso@example.test',
+            'password' => 'secret-password',
+            'role' => 'admin',
+        ])->assertUnprocessable()->assertJsonValidationErrors('role');
+
+        $this->assertDatabaseMissing('users', ['email' => 'intruso@example.test']);
+    }
+
     public function test_registration_rejects_an_unknown_role(): void
     {
         $this->postJson('/api/v1/auth/register', [

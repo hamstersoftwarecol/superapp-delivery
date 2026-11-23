@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { apiFetch } from "@/lib/api";
-import { getCurrentUser } from "@/lib/dal";
+import { requireRestaurantOwner } from "@/lib/dal";
 import type { Collection, Restaurant } from "@/lib/types";
 import { RestaurantForm } from "./restaurant-form";
 
 export const metadata: Metadata = { title: "Restaurante" };
 
 export default async function RestaurantPage() {
-  await getCurrentUser();
+  await requireRestaurantOwner({ allowPending: true });
   const { data: restaurants } = await apiFetch<Collection<Restaurant>>("/owner/restaurants");
   const restaurant = restaurants[0];
 

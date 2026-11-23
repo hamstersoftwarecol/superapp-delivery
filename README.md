@@ -24,8 +24,21 @@ Cliente hace el pedido ─▶ pending ─▶ accepted ─▶ preparing ─▶ re
 | `customer`    | Ver restaurantes abiertos, hacer pedidos, seguirlos y cancelarlos mientras estén `pending`.      |
 | `restaurant`  | Crear su restaurante y su menú; aceptar, rechazar, preparar y marcar como listo (`ready`).       |
 | `courier`     | Ver pedidos `ready` sin repartidor, tomarlos, marcarlos `picked_up` y `delivered`.               |
+| `admin`       | Revisar las cuentas de restaurantes y repartidores: aprobarlas, rechazarlas o suspenderlas.      |
 
 El API valida cada paso: no se pueden saltar estados y cada rol solo puede dar los suyos.
+
+### Aprobación de cuentas
+
+Los clientes entran directamente. Los **restaurantes y repartidores nuevos quedan en revisión** (`pending`) hasta que un administrador los apruebe:
+
+| Estado       | Qué puede hacer la cuenta                                                                                         |
+| ------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `pending`    | Ver su perfil y cerrar sesión. Un restaurante además puede preparar su restaurante y su menú (los clientes no lo ven). Un repartidor ve una pantalla de espera. |
+| `approved`   | Trabajar con normalidad.                                                                                          |
+| `suspended`  | Nada. No puede iniciar sesión, se cierran todas sus sesiones y su restaurante deja de mostrarse a los clientes.   |
+
+Nadie puede registrarse como `admin`: esas cuentas se crean por comando (ver más abajo).
 
 ## Requisitos
 
@@ -85,6 +98,22 @@ flutter run --dart-define=API_URL=http://192.168.1.20:8000/api/v1
 
 > **Teléfono físico (sin probar):** `localhost` sería el propio teléfono. Haría falta usar la IP de tu Mac en `API_URL` y arrancar el API con `php artisan serve --host=0.0.0.0`.
 
+### Crear el primer administrador
+
+```bash
+cd api
+php artisan admin:create tu@correo.com --name="Tu Nombre"
+```
+
+Pide la contraseña de forma oculta (no queda en el historial del terminal). Luego entra al panel web: verás la pantalla **Cuentas** con las solicitudes pendientes, cada una con sus datos y, si es un restaurante, el local que preparó.
+
+### Recuperar contraseña
+
+En el login (panel web y app móvil) hay un enlace "¿Olvidaste tu contraseña?". El API envía un correo con un enlace que abre `FRONTEND_URL/reset-password` (una página del panel web, que funciona igual para los tres roles), válido 60 minutos y de un solo uso. Al cambiar la contraseña se cierran todas las sesiones de esa cuenta. Pedir el enlace responde siempre lo mismo, exista o no el correo, y tiene límite de intentos.
+
+- En desarrollo el correo **no se envía**: Laravel lo escribe en `api/storage/logs/laravel.log` (`MAIL_MAILER=log`). Copia de ahí el enlace.
+- En producción hay que configurar un proveedor de correo (`MAIL_*` en el `.env` del API) y poner en `FRONTEND_URL` la dirección pública del panel web.
+
 ## Cuentas de demostración
 
 Todas usan la contraseña `demo-password` (definida en `api/database/seeders/DemoSeeder.php`).
@@ -95,18 +124,21 @@ Todas usan la contraseña `demo-password` (definida en `api/database/seeders/Dem
 | `repartidor@demo.test`   | courier      | App móvil: pedidos disponibles y entregas.                   |
 | `restaurante@demo.test`  | restaurant   | Panel web: tablero de pedidos, menú y datos del restaurante. |
 | `sushi@demo.test`        | restaurant   | Dueño de un restaurante cerrado (no aparece a los clientes). |
+| `admin@demo.test`        | admin        | Panel web: pantalla Cuentas (aprobar, rechazar, suspender).  |
+| `repartidor-pendiente@demo.test`  | courier    | App móvil: pantalla "tu cuenta está en revisión".      |
+| `restaurante-pendiente@demo.test` | restaurant | Panel web: restaurante en revisión, y la cola del admin. |
 
-Los datos incluyen 3 restaurantes con menú y 6 pedidos, uno en cada etapa: pendiente, en preparación, listo, en camino, entregado y cancelado.
+Los datos incluyen 7 cuentas, 3 restaurantes con menú y 6 pedidos, uno en cada etapa: pendiente, en preparación, listo, en camino, entregado y cancelado.
 
 Para volver a empezar desde cero: `php artisan migrate:fresh --seed` (borra toda la base de datos).
 
 ## Pruebas
 
 ```bash
-cd api && php artisan test                                   # 28 pruebas
-cd mobile && flutter test                                    # 19 pruebas
-cd mobile/packages/delivery_api_client && dart test          # 7 pruebas
-cd mobile/packages/delivery_repository && dart test          # 11 pruebas
+cd api && php artisan test                                   # 67 pruebas
+cd mobile && flutter test                                    # 28 pruebas
+cd mobile/packages/delivery_api_client && dart test          # 9 pruebas
+cd mobile/packages/delivery_repository && dart test          # 16 pruebas
 cd web && pnpm lint && pnpm build                            # el panel web no tiene pruebas propias
 ```
 
@@ -118,9 +150,11 @@ Autenticación con token (`Authorization: Bearer <token>`). Los precios van en *
 
 | Método y ruta                           | Quién            | Qué hace                                              |
 | --------------------------------------- | ---------------- | ----------------------------------------------------- |
-| `POST /auth/register`                   | público          | Crea la cuenta con un rol y devuelve el token.        |
-| `POST /auth/login`                      | público          | Devuelve el token.                                    |
-| `POST /auth/logout`, `GET /me`          | autenticado      | Cierra sesión / perfil.                               |
+| `POST /auth/register`                   | público          | Crea la cuenta (cliente, restaurante o repartidor) y devuelve el token. |
+| `POST /auth/login`                      | público          | Devuelve el token. Una cuenta suspendida recibe 403.  |
+| `POST /auth/forgot-password`            | público          | Envía el correo de recuperación (misma respuesta exista o no la cuenta). |
+| `POST /auth/reset-password`             | público          | Cambia la contraseña con el token del correo.         |
+| `POST /auth/logout`, `GET /me`          | autenticado      | Cierra sesión / perfil con su estado de cuenta (`status`). |
 | `GET /restaurants`, `GET /restaurants/{id}` | público      | Restaurantes abiertos / uno con su menú disponible.   |
 | `GET /owner/restaurants`                | restaurant       | Sus restaurantes con todo el menú.                    |
 | `POST /restaurants`, `PATCH /restaurants/{id}` | restaurant | Crear y editar (solo el dueño).                     |
@@ -131,6 +165,10 @@ Autenticación con token (`Authorization: Bearer <token>`). Los precios van en *
 | `PATCH /orders/{id}/status`             | según el estado  | Avanza el pedido (el API valida rol y transición).    |
 | `GET /courier/available-orders`         | courier          | Pedidos `ready` sin repartidor.                       |
 | `POST /orders/{id}/claim`               | courier          | Tomar un pedido (dos repartidores no pueden tomarlo). |
+| `GET /admin/accounts`                   | admin            | Lista cuentas (`?status=` y `?role=`), con los restaurantes de cada dueño. |
+| `PATCH /admin/accounts/{id}/status`     | admin            | `approved` o `suspended` (con `note` opcional). Un admin no puede cambiar a otro admin ni a sí mismo. |
+
+Las cuentas `pending` solo pueden usar `/me`, `/auth/logout` y, si son restaurantes, la gestión de su restaurante y menú. Todo lo demás responde 403 con `code: account_pending`.
 
 ## Cómo está hecho
 
@@ -149,6 +187,8 @@ Aún no hay:
 - **Probado en un teléfono físico** ni compilaciones de producción (HTTPS, iconos, firma de la app).
 - **Notificaciones push** ni mapa/seguimiento por GPS del repartidor.
 - **Traducciones.** Los textos están fijos en español.
-- **Rol `admin`.** No hay panel de administración general.
+- **Correos de producción.** Falta elegir y configurar el proveedor. Tampoco hay correo de verificación al registrarse ni aviso por correo cuando el admin aprueba o rechaza una cuenta.
+- **Panel del admin más allá de las cuentas.** No hay reportes, comisiones ni ver pedidos de todos los restaurantes.
+- **Pedidos en curso de un restaurante suspendido.** Quedan como están; no hay regla que los cancele.
 - **Varios restaurantes por cuenta en el panel web.** El menú permite elegir entre ellos, pero la pantalla "Restaurante" solo edita el primero y no hay forma de crear uno segundo desde ahí.
 - **Repositorio git.** La carpeta aún no está versionada.

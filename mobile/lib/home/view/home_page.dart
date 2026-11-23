@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:superapp_delivery/auth/auth.dart';
 import 'package:superapp_delivery/cart/cart.dart';
 import 'package:superapp_delivery/courier/courier.dart';
+import 'package:superapp_delivery/home/view/pending_approval_view.dart';
 import 'package:superapp_delivery/orders/orders.dart';
 import 'package:superapp_delivery/restaurants/restaurants.dart';
 
@@ -13,12 +14,13 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final role = context.select((AuthCubit cubit) => cubit.state.user?.role);
+    final user = context.select((AuthCubit cubit) => cubit.state.user);
 
-    return switch (role) {
+    return switch (user?.role) {
       UserRole.customer => const _CustomerHome(),
+      UserRole.courier when user!.isPending => const PendingApprovalView(),
       UserRole.courier => const _CourierHome(),
-      UserRole.restaurant || null => const _RestaurantRoleNotice(),
+      UserRole.restaurant || UserRole.admin || null => const _WebPanelNotice(),
     };
   }
 }
@@ -128,8 +130,8 @@ class _CourierHomeState extends State<_CourierHome> {
   }
 }
 
-class _RestaurantRoleNotice extends StatelessWidget {
-  const _RestaurantRoleNotice();
+class _WebPanelNotice extends StatelessWidget {
+  const _WebPanelNotice();
 
   @override
   Widget build(BuildContext context) {
@@ -139,7 +141,7 @@ class _RestaurantRoleNotice extends StatelessWidget {
         child: Padding(
           padding: EdgeInsets.all(32),
           child: Text(
-            'Los restaurantes administran sus pedidos desde el panel web.',
+            'Los restaurantes y administradores usan el panel web.',
             textAlign: TextAlign.center,
           ),
         ),

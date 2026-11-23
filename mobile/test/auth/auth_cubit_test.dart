@@ -75,6 +75,29 @@ void main() {
     );
 
     blocTest<AuthCubit, AuthState>(
+      'refresh picks up an approval that happened on the server',
+      setUp: () => when(() => repository.refreshUser()).thenAnswer((_) async {
+        users.add(_user);
+        return _user;
+      }),
+      build: () => AuthCubit(authRepository: repository),
+      act: (cubit) => cubit.refresh(),
+      expect: () => [
+        const AuthState(status: AuthStatus.authenticated, user: _user),
+      ],
+    );
+
+    blocTest<AuthCubit, AuthState>(
+      'refresh keeps the session and reports the error when offline',
+      setUp: () =>
+          when(() => repository.refreshUser())
+              .thenThrow(const ApiException(0, 'Sin conexión')),
+      build: () => AuthCubit(authRepository: repository),
+      act: (cubit) => cubit.refresh(),
+      expect: () => [const AuthState(error: 'Sin conexión')],
+    );
+
+    blocTest<AuthCubit, AuthState>(
       'follows the repository when the session ends elsewhere',
       build: () => AuthCubit(authRepository: repository),
       act: (cubit) {

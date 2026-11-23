@@ -24,3 +24,9 @@ const time = new Intl.DateTimeFormat("es-CO", { hour: "2-digit", minute: "2-digi
 export function formatTime(iso: string): string {
   return time.format(new Date(iso));
 }
+
+const date = new Intl.DateTimeFormat("es-CO", { day: "numeric", month: "short", year: "numeric" });
+
+export function formatDate(iso: string): string {
+  return date.format(new Date(iso));
+}

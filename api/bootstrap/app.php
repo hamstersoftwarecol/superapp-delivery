@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureAccountIsActive;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -16,6 +17,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // API-only app: unauthenticated requests get a 401, never a redirect to a
         // login route that does not exist.
         $middleware->redirectGuestsTo(fn (Request $request) => null);
+
+        $middleware->alias(['active' => EnsureAccountIsActive::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

@@ -15,12 +15,14 @@ class RestaurantController extends Controller
     public function index(): AnonymousResourceCollection
     {
         return RestaurantResource::collection(
-            Restaurant::query()->open()->orderBy('name')->paginate(20)
+            Restaurant::query()->visible()->orderBy('name')->paginate(20)
         );
     }
 
     public function show(Restaurant $restaurant): RestaurantResource
     {
+        abort_unless($restaurant->owner->isApproved(), 404);
+
         return new RestaurantResource(
             $restaurant->load(['menuItems' => fn ($query) => $query->available()->orderBy('name')])
         );

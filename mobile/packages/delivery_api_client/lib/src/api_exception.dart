@@ -7,6 +7,7 @@ class ApiException implements Exception {
     this.statusCode,
     this.message, {
     this.fieldErrors = const {},
+    this.code,
   });
 
   final int statusCode;
@@ -14,6 +15,9 @@ class ApiException implements Exception {
 
   /// Validation errors keyed by field name (HTTP 422).
   final Map<String, List<String>> fieldErrors;
+
+  /// Machine-readable reason sent by the API, e.g. `account_pending`.
+  final String? code;
 
   bool get isNetworkError => statusCode == 0;
 

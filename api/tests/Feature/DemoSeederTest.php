@@ -37,6 +37,15 @@ class DemoSeederTest extends TestCase
         }
     }
 
+    public function test_it_includes_an_admin_and_accounts_waiting_for_review(): void
+    {
+        $this->seed(DemoSeeder::class);
+
+        $this->assertDatabaseHas('users', ['email' => DemoSeeder::ADMIN_EMAIL, 'role' => 'admin', 'status' => 'approved']);
+        $this->assertDatabaseHas('users', ['email' => DemoSeeder::PENDING_COURIER_EMAIL, 'status' => 'pending']);
+        $this->assertDatabaseHas('users', ['email' => DemoSeeder::PENDING_OWNER_EMAIL, 'status' => 'pending']);
+    }
+
     public function test_seeded_order_totals_add_up(): void
     {
         $this->seed(DemoSeeder::class);
@@ -80,7 +89,7 @@ class DemoSeederTest extends TestCase
         $this->seed(DemoSeeder::class);
         $this->seed(DemoSeeder::class);
 
-        $this->assertSame(4, User::count());
+        $this->assertSame(7, User::count());
         $this->assertSame(3, Restaurant::count());
         $this->assertSame(6, Order::count());
     }

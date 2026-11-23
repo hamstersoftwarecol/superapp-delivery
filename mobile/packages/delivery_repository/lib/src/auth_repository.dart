@@ -39,6 +39,26 @@ class AuthRepository {
     }
   }
 
+  /// Re-reads the signed-in user, e.g. to learn that an admin approved the
+  /// account, and emits the fresh data on [user].
+  Future<User> refreshUser() async {
+    final json = await _apiClient.get('/me') as Map<String, dynamic>;
+    final user = User.fromJson(json['data'] as Map<String, dynamic>);
+    _userController.add(user);
+    return user;
+  }
+
+  /// Asks the server to email a password reset link. The answer is the same
+  /// whether or not the address has an account, so it reveals nothing.
+  Future<String> forgotPassword({required String email}) async {
+    final json = await _apiClient.post(
+      '/auth/forgot-password',
+      body: {'email': email},
+      authenticated: false,
+    ) as Map<String, dynamic>;
+    return json['message'] as String;
+  }
+
   Future<User> login({required String email, required String password}) =>
       _authenticate('/auth/login', {
         'email': email,

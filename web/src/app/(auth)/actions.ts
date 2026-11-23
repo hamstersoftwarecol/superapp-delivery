@@ -6,7 +6,7 @@ import { clearToken, setToken } from "@/lib/session";
 import type { User } from "@/lib/types";
 
 export type FormState =
-  | { error?: string; fieldErrors?: Record<string, string[]> }
+  | { error?: string; fieldErrors?: Record<string, string[]>; notice?: string }
   | undefined;
 
 type AuthResponse = { token: string; user: User };
@@ -20,6 +20,8 @@ function toState(error: ApiError): FormState {
 }
 
 export async function login(_previous: FormState, formData: FormData): Promise<FormState> {
+  let destination = "/orders";
+
   try {
     const { token, user } = await apiFetch<AuthResponse>("/auth/login", {
       method: "POST",
@@ -31,12 +33,13 @@ export async function login(_previous: FormState, formData: FormData): Promise<F
       },
     });
 
-    if (user.role !== "restaurant") {
+    if (user.role !== "restaurant" && user.role !== "admin") {
       await apiFetch("/auth/logout", { method: "POST", token }).catch(() => undefined);
-      return { error: "Este panel es solo para restaurantes. Usa la app móvil." };
+      return { error: "Este panel es para restaurantes y administradores. Usa la app móvil." };
     }
 
     await setToken(token);
+    destination = user.role === "admin" ? "/admin" : "/orders";
   } catch (error) {
     if (error instanceof ApiError) {
       return toState(error);
@@ -44,7 +47,7 @@ export async function login(_previous: FormState, formData: FormData): Promise<F
     throw error;
   }
 
-  redirect("/orders");
+  redirect(destination);
 }
 
 export async function register(_previous: FormState, formData: FormData): Promise<FormState> {
@@ -76,4 +79,48 @@ export async function logout(): Promise<void> {
   await apiFetch("/auth/logout", { method: "POST" }).catch(() => undefined);
   await clearToken();
   redirect("/login");
+}
+
+export async function forgotPassword(_previous: FormState, formData: FormData): Promise<FormState> {
+  try {
+    const { message } = await apiFetch<{ message: string }>("/auth/forgot-password", {
+      method: "POST",
+      token: null,
+      body: { email: formData.get("email") },
+    });
+
+    return { notice: message };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return toState(error);
+    }
+    throw error;
+  }
+}
+
+export async function resetPassword(_previous: FormState, formData: FormData): Promise<FormState> {
+  const password = String(formData.get("password") ?? "");
+
+  if (password !== String(formData.get("password_confirmation") ?? "")) {
+    return { fieldErrors: { password_confirmation: ["Las contraseñas no coinciden."] } };
+  }
+
+  try {
+    const { message } = await apiFetch<{ message: string }>("/auth/reset-password", {
+      method: "POST",
+      token: null,
+      body: {
+        email: formData.get("email"),
+        token: formData.get("token"),
+        password,
+      },
+    });
+
+    return { notice: message };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return toState(error);
+    }
+    throw error;
+  }
 }

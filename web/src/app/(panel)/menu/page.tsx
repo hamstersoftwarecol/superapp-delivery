@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Field } from "@/components/field";
 import { SubmitButton } from "@/components/submit-button";
 import { apiFetch } from "@/lib/api";
-import { getCurrentUser } from "@/lib/dal";
+import { requireRestaurantOwner } from "@/lib/dal";
 import { formatCents, inputFromCents } from "@/lib/format";
 import type { Collection, MenuItem, Restaurant } from "@/lib/types";
 import { createMenuItem, deleteMenuItem, toggleMenuItem, updateMenuItem } from "../actions";
@@ -11,7 +11,7 @@ import { createMenuItem, deleteMenuItem, toggleMenuItem, updateMenuItem } from "
 export const metadata: Metadata = { title: "Menú" };
 
 export default async function MenuPage({ searchParams }: PageProps<"/menu">) {
-  await getCurrentUser();
+  await requireRestaurantOwner({ allowPending: true });
   const { r, error } = await searchParams;
   const { data: restaurants } = await apiFetch<Collection<Restaurant>>("/owner/restaurants");
 

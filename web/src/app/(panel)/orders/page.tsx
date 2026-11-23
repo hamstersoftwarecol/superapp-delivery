@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { SubmitButton } from "@/components/submit-button";
 import { apiFetch } from "@/lib/api";
-import { getCurrentUser } from "@/lib/dal";
+import { requireRestaurantOwner } from "@/lib/dal";
 import { formatCents, formatTime } from "@/lib/format";
 import type { Collection, Order, OrderStatus } from "@/lib/types";
 import { updateOrderStatus } from "../actions";
@@ -33,7 +33,7 @@ const historyLabels: Partial<Record<OrderStatus, string>> = {
 };
 
 export default async function OrdersPage({ searchParams }: PageProps<"/orders">) {
-  await getCurrentUser();
+  await requireRestaurantOwner();
   const { error } = await searchParams;
   const { data: orders } = await apiFetch<Collection<Order>>("/orders");
 

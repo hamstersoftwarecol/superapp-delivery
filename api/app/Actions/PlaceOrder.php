@@ -19,10 +19,10 @@ class PlaceOrder
      */
     public function handle(User $customer, array $data): Order
     {
-        $restaurant = Restaurant::findOrFail($data['restaurant_id']);
+        $restaurant = Restaurant::with('owner')->findOrFail($data['restaurant_id']);
 
-        if (! $restaurant->is_open) {
-            throw ValidationException::withMessages(['restaurant_id' => 'El restaurante está cerrado.']);
+        if (! $restaurant->is_open || ! $restaurant->owner->isApproved()) {
+            throw ValidationException::withMessages(['restaurant_id' => 'El restaurante no está disponible.']);
         }
 
         $quantities = $this->quantitiesByMenuItem($data['items']);

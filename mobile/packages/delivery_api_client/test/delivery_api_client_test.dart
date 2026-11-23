@@ -83,6 +83,41 @@ void main() {
       );
     });
 
+    test('keeps the machine-readable code of a refusal', () async {
+      final client = buildClient(
+        (_) async => jsonResponse({
+          'message': 'En revisión',
+          'code': 'account_pending',
+        }, 403),
+      );
+
+      await expectLater(
+        client.get('/orders'),
+        throwsA(
+          isA<ApiException>()
+              .having((e) => e.statusCode, 'statusCode', 403)
+              .having((e) => e.code, 'code', 'account_pending'),
+        ),
+      );
+    });
+
+    test('explains rate limiting in Spanish', () async {
+      final client = buildClient(
+        (_) async => jsonResponse({'message': 'Too Many Attempts.'}, 429),
+      );
+
+      await expectLater(
+        client.post('/auth/login', authenticated: false),
+        throwsA(
+          isA<ApiException>().having(
+            (e) => e.message,
+            'message',
+            contains('Demasiados intentos'),
+          ),
+        ),
+      );
+    });
+
     test('clears the token and signals when the API answers 401', () async {
       final storage = InMemoryTokenStorage('expired');
       final client = buildClient(

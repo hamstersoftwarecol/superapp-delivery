@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\AccountStatus;
 use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -30,6 +31,7 @@ class UserFactory extends Factory
             'email' => fake()->unique()->safeEmail(),
             'phone' => fake()->phoneNumber(),
             'role' => UserRole::Customer,
+            'status' => AccountStatus::Approved,
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
@@ -39,6 +41,21 @@ class UserFactory extends Factory
     public function restaurantOwner(): static
     {
         return $this->state(fn (array $attributes) => ['role' => UserRole::Restaurant]);
+    }
+
+    public function admin(): static
+    {
+        return $this->state(fn (array $attributes) => ['role' => UserRole::Admin]);
+    }
+
+    public function pending(): static
+    {
+        return $this->state(fn (array $attributes) => ['status' => AccountStatus::Pending]);
+    }
+
+    public function suspended(): static
+    {
+        return $this->state(fn (array $attributes) => ['status' => AccountStatus::Suspended]);
     }
 
     public function courier(): static

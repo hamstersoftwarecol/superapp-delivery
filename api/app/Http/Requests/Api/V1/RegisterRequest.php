@@ -24,7 +24,7 @@ class RegisterRequest extends FormRequest
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'phone' => ['nullable', 'string', 'max:30'],
             'password' => ['required', 'string', Password::min(8)],
-            'role' => ['required', Rule::enum(UserRole::class)],
+            'role' => ['required', Rule::enum(UserRole::class)->only(UserRole::selfRegistrable())],
         ];
     }
 }

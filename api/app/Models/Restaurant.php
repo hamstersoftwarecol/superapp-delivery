@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AccountStatus;
 use Database\Factories\RestaurantFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -34,6 +35,20 @@ class Restaurant extends Model
     public function scopeOpen(Builder $query): Builder
     {
         return $query->where('is_open', true);
+    }
+
+    /**
+     * What customers can see: open restaurants whose owner is approved.
+     *
+     * @param  Builder<Restaurant>  $query
+     * @return Builder<Restaurant>
+     */
+    public function scopeVisible(Builder $query): Builder
+    {
+        return $query->open()->whereHas(
+            'owner',
+            fn (Builder $owner) => $owner->where('status', AccountStatus::Approved)
+        );
     }
 
     /**

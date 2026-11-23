@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Enums\AccountStatus;
 use App\Enums\UserRole;
+use App\Notifications\ResetPasswordNotification;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -28,12 +30,23 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'role' => UserRole::class,
+            'status' => AccountStatus::class,
         ];
     }
 
     public function hasRole(UserRole $role): bool
     {
         return $this->role === $role;
+    }
+
+    public function isApproved(): bool
+    {
+        return $this->status === AccountStatus::Approved;
+    }
+
+    public function sendPasswordResetNotification(#[\SensitiveParameter] $token): void
+    {
+        $this->notify(new ResetPasswordNotification($token));
     }
 
     /**

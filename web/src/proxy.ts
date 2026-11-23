@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const SESSION_COOKIE = "delivery_token";
-const PUBLIC_PATHS = ["/login", "/register", "/session"];
+const PUBLIC_PATHS = ["/login", "/register", "/forgot-password", "/reset-password", "/session"];
 
 /**
  * Optimistic check only: redirects visitors without a session cookie.

@@ -107,8 +107,11 @@ class DeliveryApiClient {
     final json = decoded is Map<String, dynamic> ? decoded : const {};
     throw ApiException(
       response.statusCode,
-      json['message'] as String? ?? 'Ocurrió un error inesperado.',
+      response.statusCode == 429
+          ? 'Demasiados intentos. Espera un minuto e inténtalo de nuevo.'
+          : json['message'] as String? ?? 'Ocurrió un error inesperado.',
       fieldErrors: _parseFieldErrors(json['errors']),
+      code: json['code'] as String?,
     );
   }
 
