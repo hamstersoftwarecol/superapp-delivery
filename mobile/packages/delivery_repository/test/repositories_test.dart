@@ -35,8 +35,12 @@ const _orderJson = {
   ],
 };
 
-http.Response _json(Object body, [int status = 200]) =>
-    http.Response(jsonEncode(body), status);
+/// Like a real server: the body is UTF-8 bytes, so accents survive.
+http.Response _json(Object body, [int status = 200]) => http.Response.bytes(
+  utf8.encode(jsonEncode(body)),
+  status,
+  headers: {'content-type': 'application/json'},
+);
 
 void main() {
   late InMemoryTokenStorage storage;
@@ -211,6 +215,77 @@ void main() {
       expect(jsonDecode(seen.body), {'status': 'picked_up'});
     });
 
+    test('updateStatus sends the reason when the order ends badly', () async {
+      late http.Request seen;
+      final repository = OrderRepository(
+        apiClient: buildClient((request) async {
+          seen = request;
+          return _json({'data': _orderJson});
+        }),
+      );
+
+      await repository.updateStatus(
+        3,
+        OrderStatus.failed,
+        reason: 'El cliente no contestó',
+      );
+
+      expect(jsonDecode(seen.body), {
+        'status': 'failed',
+        'reason': 'El cliente no contestó',
+      });
+    });
+
+    test('updateStatus leaves the reason out when there is none', () async {
+      late http.Request seen;
+      final repository = OrderRepository(
+        apiClient: buildClient((request) async {
+          seen = request;
+          return _json({'data': _orderJson});
+        }),
+      );
+
+      await repository.updateStatus(3, OrderStatus.accepted);
+
+      expect(jsonDecode(seen.body), {'status': 'accepted'});
+    });
+
+    test('release gives the order back through its own endpoint', () async {
+      late http.Request seen;
+      final repository = OrderRepository(
+        apiClient: buildClient((request) async {
+          seen = request;
+          return _json({'data': _orderJson});
+        }),
+      );
+
+      await repository.release(3);
+
+      expect(seen.method, 'POST');
+      expect(seen.url.path, '/api/v1/orders/3/release');
+    });
+
+    test('maps who decided and why an order ended badly', () async {
+      final repository = OrderRepository(
+        apiClient: buildClient(
+          (_) async => _json({
+            'data': {
+              ..._orderJson,
+              'status': 'cancelled',
+              'status_reason': 'El restaurante no respondió a tiempo.',
+              'status_actor': 'system',
+            },
+          }),
+        ),
+      );
+
+      final order = await repository.getOrder(3);
+
+      expect(order.status, OrderStatus.cancelled);
+      expect(order.statusActor, OrderActor.system);
+      expect(order.statusReason, 'El restaurante no respondió a tiempo.');
+    });
+
     test('getAvailableOrders maps the list', () async {
       final repository = OrderRepository(
         apiClient: buildClient(
@@ -289,6 +364,8 @@ void main() {
     test('knows which statuses are final', () {
       expect(OrderStatus.delivered.isFinal, isTrue);
       expect(OrderStatus.cancelled.isFinal, isTrue);
+      expect(OrderStatus.failed.isFinal, isTrue);
+      expect(OrderStatus.pickedUp.isFinal, isFalse);
       expect(OrderStatus.ready.isFinal, isFalse);
     });
   });

@@ -43,7 +43,11 @@ export type OrderStatus =
   | "picked_up"
   | "delivered"
   | "rejected"
-  | "cancelled";
+  | "cancelled"
+  | "failed";
+
+/** Who moved an order to its current status. `system` means an automatic rule. */
+export type OrderActor = "customer" | "restaurant" | "courier" | "system";
 
 export type OrderItem = {
   id: number;
@@ -62,6 +66,9 @@ export type Order = {
   delivery_address: string;
   notes: string | null;
   payment_method: string;
+  status_reason: string | null;
+  status_actor: OrderActor | null;
+  status_changed_at: string | null;
   created_at: string;
   restaurant?: Restaurant;
   customer?: User;

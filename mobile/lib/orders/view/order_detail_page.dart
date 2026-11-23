@@ -1,5 +1,6 @@
 import 'package:delivery_repository/delivery_repository.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:superapp_delivery/auth/auth.dart';
 import 'package:superapp_delivery/core/format.dart';
@@ -75,7 +76,7 @@ class _OrderBody extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _StatusTracker(status: order.status),
+        _StatusTracker(order: order),
         const SizedBox(height: 24),
         Text(order.restaurant?.name ?? '', style: theme.textTheme.titleMedium),
         if (order.restaurant != null)
@@ -127,9 +128,11 @@ class _OrderBody extends StatelessWidget {
 }
 
 class _StatusTracker extends StatelessWidget {
-  const _StatusTracker({required this.status});
+  const _StatusTracker({required this.order});
 
-  final OrderStatus status;
+  final Order order;
+
+  OrderStatus get status => order.status;
 
   static const _steps = [
     OrderStatus.pending,
@@ -145,26 +148,46 @@ class _StatusTracker extends StatelessWidget {
     final theme = Theme.of(context);
 
     if (status.isProblem) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.errorContainer,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.cancel_outlined,
-              color: theme.colorScheme.onErrorContainer,
-            ),
-            const SizedBox(width: 12),
-            Text(
-              status.label,
-              style: theme.textTheme.titleSmall?.copyWith(
-                color: theme.colorScheme.onErrorContainer,
+      final onError = theme.colorScheme.onErrorContainer;
+
+      return Semantics(
+        container: true,
+        label: 'Pedido terminado: ${order.problemTitle}',
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.errorContainer,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.cancel_outlined, color: onError),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      order.problemTitle,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: onError,
+                      ),
+                    ),
+                    if (order.statusReason != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Motivo: ${order.statusReason}',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: onError,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
     }
@@ -276,12 +299,23 @@ class _InfoTile extends StatelessWidget {
   }
 }
 
-/// The one thing the current user can do next with this order, if anything.
+/// What the current user can do next with this order, if anything.
 class _Actions extends StatelessWidget {
   const _Actions({required this.order, required this.isUpdating});
 
   final Order order;
   final bool isUpdating;
+
+  /// Why a courier could not hand the order over. "Otro" asks for details.
+  static const _failureReasons = [
+    'El cliente no contestó',
+    'No encontré la dirección',
+    'El cliente rechazó el pedido',
+    'Tuve un problema con mi vehículo',
+    otherReason,
+  ];
+
+  static const otherReason = 'Otro';
 
   @override
   Widget build(BuildContext context) {
@@ -292,36 +326,54 @@ class _Actions extends StatelessWidget {
     final isAssignedCourier =
         user?.role == UserRole.courier && order.courier?.id == user?.id;
 
-    final Widget? button;
+    final List<Widget> buttons;
     if (isCustomer && order.status == OrderStatus.pending) {
-      button = OutlinedButton(
-        onPressed: isUpdating ? null : () => _confirmCancel(context, cubit),
-        child: const Text('Cancelar pedido'),
-      );
+      buttons = [
+        OutlinedButton(
+          onPressed: isUpdating ? null : () => _confirmCancel(context, cubit),
+          child: const Text('Cancelar pedido'),
+        ),
+      ];
     } else if (isAssignedCourier && order.status == OrderStatus.ready) {
-      button = FilledButton(
-        onPressed: isUpdating
-            ? null
-            : () => cubit.updateStatus(OrderStatus.pickedUp),
-        child: const Text('Recogí el pedido'),
-      );
+      buttons = [
+        FilledButton(
+          onPressed: isUpdating
+              ? null
+              : () => cubit.updateStatus(OrderStatus.pickedUp),
+          child: const Text('Recogí el pedido'),
+        ),
+        TextButton(
+          onPressed: isUpdating ? null : () => _confirmRelease(context, cubit),
+          child: const Text('Soltar pedido'),
+        ),
+      ];
     } else if (isAssignedCourier && order.status == OrderStatus.pickedUp) {
-      button = FilledButton(
-        onPressed: isUpdating
-            ? null
-            : () => cubit.updateStatus(OrderStatus.delivered),
-        child: const Text('Marcar como entregado'),
-      );
+      buttons = [
+        FilledButton(
+          onPressed: isUpdating
+              ? null
+              : () => cubit.updateStatus(OrderStatus.delivered),
+          child: const Text('Marcar como entregado'),
+        ),
+        TextButton(
+          onPressed: isUpdating ? null : () => _reportFailure(context, cubit),
+          child: const Text('No pude entregarlo'),
+        ),
+      ];
     } else {
-      button = null;
+      buttons = const [];
     }
 
-    if (button == null) return const SizedBox.shrink();
+    if (buttons.isEmpty) return const SizedBox.shrink();
 
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-        child: button,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: buttons,
+        ),
       ),
     );
   }
@@ -349,5 +401,133 @@ class _Actions extends StatelessWidget {
       ),
     );
     if (confirmed == true) await cubit.updateStatus(OrderStatus.cancelled);
+  }
+
+  Future<void> _confirmRelease(
+    BuildContext context,
+    OrderDetailCubit cubit,
+  ) async {
+    final router = GoRouter.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('¿Soltar este pedido?'),
+        content: const Text(
+          'Volverá a quedar disponible para otros repartidores. '
+          'Hazlo solo si no puedes recogerlo.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Volver'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(minimumSize: const Size(120, 44)),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Soltar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    if (await cubit.release() && router.canPop()) router.pop();
+  }
+
+  Future<void> _reportFailure(
+    BuildContext context,
+    OrderDetailCubit cubit,
+  ) async {
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (context) =>
+          const _FailureReasonDialog(reasons: _failureReasons),
+    );
+    if (reason != null) {
+      await cubit.updateStatus(OrderStatus.failed, reason: reason);
+    }
+  }
+}
+
+/// Asks why the delivery could not be completed. The reason is shown to the
+/// customer and the restaurant, so "Otro" requires a written explanation.
+class _FailureReasonDialog extends StatefulWidget {
+  const _FailureReasonDialog({required this.reasons});
+
+  final List<String> reasons;
+
+  @override
+  State<_FailureReasonDialog> createState() => _FailureReasonDialogState();
+}
+
+class _FailureReasonDialogState extends State<_FailureReasonDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _detail = TextEditingController();
+  late String _selected = widget.reasons.first;
+
+  bool get _isOther => _selected == _Actions.otherReason;
+
+  @override
+  void dispose() {
+    _detail.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!_formKey.currentState!.validate()) return;
+
+    final detail = _detail.text.trim();
+    Navigator.pop(context, _isOther ? detail : _selected);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('¿Por qué no pudiste entregarlo?'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            DropdownButtonFormField<String>(
+              initialValue: _selected,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Motivo'),
+              items: [
+                for (final reason in widget.reasons)
+                  DropdownMenuItem(value: reason, child: Text(reason)),
+              ],
+              onChanged: (value) => setState(() => _selected = value!),
+            ),
+            if (_isOther) ...[
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _detail,
+                maxLength: 150,
+                autofocus: true,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  labelText: 'Cuéntanos qué pasó',
+                ),
+                validator: (value) =>
+                    (value ?? '').trim().isEmpty ? 'Escribe el motivo' : null,
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Volver'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(minimumSize: const Size(120, 44)),
+          onPressed: _submit,
+          child: const Text('Confirmar'),
+        ),
+      ],
+    );
   }
 }

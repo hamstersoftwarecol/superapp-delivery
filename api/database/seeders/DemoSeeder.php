@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\OrderActor;
 use App\Enums\OrderStatus;
 use App\Models\MenuItem;
 use App\Models\Order;
@@ -127,7 +128,11 @@ class DemoSeeder extends Seeder
         $this->order($customer, $tacos, OrderStatus::Ready, [['Quesadilla', 2]]);
         $this->order($customer, $tacos, OrderStatus::PickedUp, [['Taco al pastor', 4]], $courier);
         $this->order($customer, $tacos, OrderStatus::Delivered, [['Burrito de pollo', 2]], $courier);
-        $this->order($customer, $tacos, OrderStatus::Cancelled, [['Limonada', 1]]);
+
+        // The ways an order can end badly, each with who decided and why.
+        $this->order($customer, $tacos, OrderStatus::Cancelled, [['Limonada', 1]], reason: 'Se agotaron los ingredientes.', actor: OrderActor::Restaurant);
+        $this->order($customer, $tacos, OrderStatus::Rejected, [['Quesadilla', 1]], reason: 'Estamos cerrando la cocina.', actor: OrderActor::Restaurant);
+        $this->order($customer, $tacos, OrderStatus::Failed, [['Taco al pastor', 2]], $courier, 'El cliente no contestó el teléfono.', OrderActor::Courier);
 
         $this->command?->info('Datos de demostración creados. Contraseña de todas las cuentas: '.self::PASSWORD);
     }
@@ -160,6 +165,8 @@ class DemoSeeder extends Seeder
         OrderStatus $status,
         array $lines,
         ?User $courier = null,
+        ?string $reason = null,
+        ?OrderActor $actor = null,
     ): Order {
         $items = $restaurant->menuItems->whereIn('name', array_column($lines, 0))->keyBy('name');
         $quantities = array_column($lines, 1, 0);
@@ -173,6 +180,8 @@ class DemoSeeder extends Seeder
             'delivery_fee_cents' => $restaurant->delivery_fee_cents,
             'total_cents' => $subtotal + $restaurant->delivery_fee_cents,
             'delivery_address' => 'Carrera 7 # 40-10, apto 301',
+            'status_reason' => $reason,
+            'status_actor' => $actor,
         ]);
 
         foreach ($items as $item) {

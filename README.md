@@ -14,19 +14,42 @@ Por ahora solo hay comida y solo pago contra entrega.
 
 ```
 Cliente hace el pedido ─▶ pending ─▶ accepted ─▶ preparing ─▶ ready ─▶ picked_up ─▶ delivered
-                            │ │
-                            │ └─▶ rejected   (el restaurante lo rechaza)
-                            └───▶ cancelled  (el cliente cancela, solo mientras está pending)
+                            │            │           │          │          │
+                            │ rejected   └───────────┴──────────┘          └─▶ failed
+                            │ cancelled     cancelled (restaurante,           (el repartidor no
+                            │ (cliente      o automático, antes de             pudo entregar)
+                            ▼  o sistema)   que se recoja)
 ```
 
 | Rol           | Puede hacer                                                                                      |
 | ------------- | ------------------------------------------------------------------------------------------------ |
 | `customer`    | Ver restaurantes abiertos, hacer pedidos, seguirlos y cancelarlos mientras estén `pending`.      |
-| `restaurant`  | Crear su restaurante y su menú; aceptar, rechazar, preparar y marcar como listo (`ready`).       |
-| `courier`     | Ver pedidos `ready` sin repartidor, tomarlos, marcarlos `picked_up` y `delivered`.               |
+| `restaurant`  | Crear su restaurante y su menú; aceptar, rechazar, preparar y marcar como listo (`ready`). Puede cancelar un pedido ya aceptado, hasta que lo recojan. |
+| `courier`     | Ver pedidos `ready` sin repartidor, tomarlos, soltarlos antes de recogerlos, marcarlos `picked_up` y `delivered`, o `failed` si no pudo entregar. |
 | `admin`       | Revisar las cuentas de restaurantes y repartidores: aprobarlas, rechazarlas o suspenderlas.      |
 
 El API valida cada paso: no se pueden saltar estados y cada rol solo puede dar los suyos.
+
+### Cuando algo sale mal
+
+Cada final que no es una entrega guarda **quién lo decidió** (`status_actor`: cliente, restaurante, repartidor o sistema) y **por qué** (`status_reason`), y ambos se muestran en el panel y en la app.
+
+| Situación | Qué pasa | Motivo |
+| --- | --- | --- |
+| El restaurante rechaza un pedido nuevo | `rejected` | Obligatorio |
+| El restaurante cancela un pedido aceptado, en preparación o listo | `cancelled`. No puede si un repartidor ya lo recogió. | Obligatorio |
+| El cliente cancela | Solo mientras está `pending`. Después, solo el restaurante puede cancelar. | Opcional |
+| El restaurante no responde en **10 min** | `cancelled` automático | "El restaurante no respondió a tiempo." |
+| Listo, sin repartidor en **30 min** | `cancelled` automático | "No hubo un repartidor disponible a tiempo." |
+| Un repartidor toma el pedido y no lo recoge en **20 min** | Vuelve a quedar disponible (con una ventana nueva de 30 min) | — |
+| El repartidor ya no puede recogerlo | Lo **suelta** (`POST /orders/{id}/release`) y otro lo puede tomar | — |
+| El repartidor no pudo entregar | `failed` | Obligatorio |
+| Se suspende un restaurante o un cliente | Sus pedidos que nadie recogió se cancelan; los que ya van en camino siguen | "El restaurante fue suspendido." |
+| Se suspende un repartidor | Lo que tenía sin recoger vuelve al pool; lo que llevaba pasa a `failed` | "El repartidor fue suspendido." |
+
+Los plazos se cambian con `ORDER_PENDING_TIMEOUT_MINUTES`, `ORDER_UNCLAIMED_TIMEOUT_MINUTES` y `ORDER_CLAIM_TIMEOUT_MINUTES` (ver `api/config/delivery.php`).
+
+Las reglas automáticas las ejecuta el comando `php artisan orders:expire-stale`, que el planificador de Laravel lanza **cada minuto**. En desarrollo corre con `php artisan schedule:work`; en producción hace falta una tarea programada: `* * * * * cd /ruta/api && php artisan schedule:run`.
 
 ### Aprobación de cuentas
 
@@ -128,17 +151,17 @@ Todas usan la contraseña `demo-password` (definida en `api/database/seeders/Dem
 | `repartidor-pendiente@demo.test`  | courier    | App móvil: pantalla "tu cuenta está en revisión".      |
 | `restaurante-pendiente@demo.test` | restaurant | Panel web: restaurante en revisión, y la cola del admin. |
 
-Los datos incluyen 7 cuentas, 3 restaurantes con menú y 6 pedidos, uno en cada etapa: pendiente, en preparación, listo, en camino, entregado y cancelado.
+Los datos incluyen 7 cuentas, 3 restaurantes con menú y 8 pedidos, uno en cada etapa: pendiente, en preparación, listo, en camino, entregado, cancelado por el restaurante, rechazado y no entregado (estos tres con su motivo). Si corres el planificador, el pedido pendiente se cancelará solo a los 10 minutos.
 
 Para volver a empezar desde cero: `php artisan migrate:fresh --seed` (borra toda la base de datos).
 
 ## Pruebas
 
 ```bash
-cd api && php artisan test                                   # 67 pruebas
-cd mobile && flutter test                                    # 28 pruebas
+cd api && php artisan test                                   # 100 pruebas
+cd mobile && flutter test                                    # 41 pruebas
 cd mobile/packages/delivery_api_client && dart test          # 9 pruebas
-cd mobile/packages/delivery_repository && dart test          # 16 pruebas
+cd mobile/packages/delivery_repository && dart test          # 20 pruebas
 cd web && pnpm lint && pnpm build                            # el panel web no tiene pruebas propias
 ```
 
@@ -162,9 +185,10 @@ Autenticación con token (`Authorization: Bearer <token>`). Los precios van en *
 | `PATCH` / `DELETE /menu-items/{id}`     | restaurant       | Editar o eliminar un producto.                        |
 | `POST /orders`                          | customer         | Hacer un pedido. El servidor calcula los totales.     |
 | `GET /orders`, `GET /orders/{id}`       | cualquiera       | Sus pedidos, según el rol.                            |
-| `PATCH /orders/{id}/status`             | según el estado  | Avanza el pedido (el API valida rol y transición).    |
+| `PATCH /orders/{id}/status`             | según el estado  | Avanza el pedido (el API valida rol y transición). `reason` es obligatorio al rechazar, cancelar (salvo el cliente) o fallar una entrega. |
 | `GET /courier/available-orders`         | courier          | Pedidos `ready` sin repartidor.                       |
 | `POST /orders/{id}/claim`               | courier          | Tomar un pedido (dos repartidores no pueden tomarlo). |
+| `POST /orders/{id}/release`              | courier          | Soltar un pedido que tomó y aún no recogió.           |
 | `GET /admin/accounts`                   | admin            | Lista cuentas (`?status=` y `?role=`), con los restaurantes de cada dueño. |
 | `PATCH /admin/accounts/{id}/status`     | admin            | `approved` o `suspended` (con `note` opcional). Un admin no puede cambiar a otro admin ni a sí mismo. |
 
@@ -185,10 +209,10 @@ Aún no hay:
 
 - **Pagos en línea.** Solo pago contra entrega. Mercado Pago está pensado para más adelante.
 - **Probado en un teléfono físico** ni compilaciones de producción (HTTPS, iconos, firma de la app).
-- **Notificaciones push** ni mapa/seguimiento por GPS del repartidor.
+- **Notificaciones push** ni mapa/seguimiento por GPS del repartidor. Cuando un pedido se cancela solo, el cliente y el restaurante lo ven al refrescar la pantalla (cada 8 a 10 s), pero nadie recibe un aviso.
+- **Reembolsos y penalizaciones.** Con pago contra entrega no hay dinero que devolver, pero tampoco hay reglas para un repartidor que suelta pedidos con frecuencia.
 - **Traducciones.** Los textos están fijos en español.
 - **Correos de producción.** Falta elegir y configurar el proveedor. Tampoco hay correo de verificación al registrarse ni aviso por correo cuando el admin aprueba o rechaza una cuenta.
 - **Panel del admin más allá de las cuentas.** No hay reportes, comisiones ni ver pedidos de todos los restaurantes.
-- **Pedidos en curso de un restaurante suspendido.** Quedan como están; no hay regla que los cancele.
 - **Varios restaurantes por cuenta en el panel web.** El menú permite elegir entre ellos, pero la pantalla "Restaurante" solo edita el primero y no hay forma de crear uno segundo desde ahí.
 - **Repositorio git.** La carpeta aún no está versionada.

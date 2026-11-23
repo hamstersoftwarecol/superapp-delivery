@@ -75,6 +75,72 @@ void main() {
     );
 
     blocTest<OrderDetailCubit, OrderDetailState>(
+      'updateStatus passes the reason of a failed delivery',
+      setUp: () => when(
+        () => repository.updateStatus(
+          5,
+          OrderStatus.failed,
+          reason: 'Sin acceso',
+        ),
+      ).thenAnswer((_) async => _order(OrderStatus.failed)),
+      build: build,
+      act: (cubit) =>
+          cubit.updateStatus(OrderStatus.failed, reason: 'Sin acceso'),
+      verify: (_) => verify(
+        () => repository.updateStatus(
+          5,
+          OrderStatus.failed,
+          reason: 'Sin acceso',
+        ),
+      ).called(1),
+    );
+
+    blocTest<OrderDetailCubit, OrderDetailState>(
+      'release gives the order back and reports success',
+      setUp: () =>
+          when(() => repository.release(5))
+              .thenAnswer((_) async => _order(OrderStatus.ready)),
+      build: build,
+      act: (cubit) async {
+        expect(await cubit.release(), isTrue);
+      },
+      expect: () => [
+        const OrderDetailState(isUpdating: true),
+        OrderDetailState(
+          status: LoadStatus.success,
+          order: _order(OrderStatus.ready),
+        ),
+      ],
+    );
+
+    blocTest<OrderDetailCubit, OrderDetailState>(
+      'release reports failure and keeps the order when the server refuses',
+      seed: () => OrderDetailState(
+        status: LoadStatus.success,
+        order: _order(OrderStatus.pickedUp),
+      ),
+      setUp: () =>
+          when(() => repository.release(5))
+              .thenThrow(const ApiException(403, 'Ya no puedes soltarlo')),
+      build: build,
+      act: (cubit) async {
+        expect(await cubit.release(), isFalse);
+      },
+      expect: () => [
+        OrderDetailState(
+          status: LoadStatus.success,
+          order: _order(OrderStatus.pickedUp),
+          isUpdating: true,
+        ),
+        OrderDetailState(
+          status: LoadStatus.success,
+          order: _order(OrderStatus.pickedUp),
+          actionError: 'Ya no puedes soltarlo',
+        ),
+      ],
+    );
+
+    blocTest<OrderDetailCubit, OrderDetailState>(
       'updateStatus keeps the order and exposes the refusal',
       seed: () => OrderDetailState(
         status: LoadStatus.success,

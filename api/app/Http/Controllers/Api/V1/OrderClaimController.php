@@ -21,7 +21,7 @@ class OrderClaimController extends Controller
             ->whereKey($order->id)
             ->whereNull('courier_id')
             ->where('status', OrderStatus::Ready)
-            ->update(['courier_id' => $request->user()->id]);
+            ->update(['courier_id' => $request->user()->id, 'claimed_at' => now()]);
 
         if ($claimed === 0) {
             throw new ConflictHttpException('Este pedido ya fue tomado por otro repartidor.');

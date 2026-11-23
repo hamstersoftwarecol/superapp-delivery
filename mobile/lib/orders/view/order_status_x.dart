@@ -11,14 +11,32 @@ extension OrderStatusX on OrderStatus {
     OrderStatus.delivered => 'Entregado',
     OrderStatus.rejected => 'Rechazado por el restaurante',
     OrderStatus.cancelled => 'Cancelado',
+    OrderStatus.failed => 'No se pudo entregar',
   };
 
   bool get isProblem =>
-      this == OrderStatus.rejected || this == OrderStatus.cancelled;
+      this == OrderStatus.rejected ||
+      this == OrderStatus.cancelled ||
+      this == OrderStatus.failed;
 
   Color color(ColorScheme scheme) => switch (this) {
     OrderStatus.delivered => Colors.green.shade700,
-    OrderStatus.rejected || OrderStatus.cancelled => scheme.error,
+    OrderStatus.rejected ||
+    OrderStatus.cancelled ||
+    OrderStatus.failed => scheme.error,
     _ => scheme.primary,
+  };
+}
+
+extension OrderProblemX on Order {
+  /// Headline of an order that ended badly, saying who decided.
+  String get problemTitle => switch ((status, statusActor)) {
+    (OrderStatus.cancelled, OrderActor.customer) => 'Cancelado por el cliente',
+    (OrderStatus.cancelled, OrderActor.restaurant) =>
+      'Cancelado por el restaurante',
+    (OrderStatus.cancelled, OrderActor.system) => 'Cancelado automáticamente',
+    (OrderStatus.failed, OrderActor.system) =>
+      'No se pudo entregar (cuenta suspendida)',
+    _ => status.label,
   };
 }

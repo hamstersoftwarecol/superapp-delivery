@@ -30,4 +30,5 @@ export async function setAccountStatus(formData: FormData): Promise<void> {
   }
 
   revalidatePath("/admin");
+  redirect(back);
 }

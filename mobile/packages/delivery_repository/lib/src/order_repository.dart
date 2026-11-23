@@ -35,12 +35,22 @@ class OrderRepository {
   Future<Order> getOrder(int id) async =>
       _order(await _apiClient.get('/orders/$id'));
 
-  Future<Order> updateStatus(int id, OrderStatus status) async => _order(
+  /// [reason] is required by the API when the order ends badly (rejected,
+  /// cancelled by someone other than the customer, or not delivered).
+  Future<Order> updateStatus(
+    int id,
+    OrderStatus status, {
+    String? reason,
+  }) async => _order(
     await _apiClient.patch(
       '/orders/$id/status',
-      body: {'status': status.value},
+      body: {'status': status.value, 'reason': ?reason},
     ),
   );
+
+  /// A courier gives back an order they took but have not picked up yet.
+  Future<Order> release(int id) async =>
+      _order(await _apiClient.post('/orders/$id/release'));
 
   /// Ready orders no courier has taken yet.
   Future<List<Order>> getAvailableOrders() async =>

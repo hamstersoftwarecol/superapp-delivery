@@ -17,7 +17,7 @@ class OrderStatusController extends Controller
 
         Gate::authorize('transition', [$order, $next]);
 
-        $updated = $transitionOrder->handle($order, $next);
+        $updated = $transitionOrder->handle($order, $next, $request->user(), $request->reason());
 
         return new OrderResource($updated->load(['restaurant', 'customer', 'courier', 'items']));
     }

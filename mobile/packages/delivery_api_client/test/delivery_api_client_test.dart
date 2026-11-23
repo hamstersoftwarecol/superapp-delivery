@@ -17,11 +17,12 @@ void main() {
     httpClient: MockClient(handler),
   );
 
-  http.Response jsonResponse(Object body, [int status = 200]) => http.Response(
-    jsonEncode(body),
-    status,
-    headers: {'content-type': 'application/json'},
-  );
+  http.Response jsonResponse(Object body, [int status = 200]) =>
+      http.Response.bytes(
+        utf8.encode(jsonEncode(body)),
+        status,
+        headers: {'content-type': 'application/json'},
+      );
 
   group('requests', () {
     test('sends the bearer token and JSON headers', () async {

@@ -32,6 +32,8 @@ class DemoSeederTest extends TestCase
             OrderStatus::PickedUp,
             OrderStatus::Delivered,
             OrderStatus::Cancelled,
+            OrderStatus::Rejected,
+            OrderStatus::Failed,
         ] as $status) {
             $this->assertSame(1, Order::where('status', $status)->count(), "Falta un pedido en estado {$status->value}");
         }
@@ -44,6 +46,18 @@ class DemoSeederTest extends TestCase
         $this->assertDatabaseHas('users', ['email' => DemoSeeder::ADMIN_EMAIL, 'role' => 'admin', 'status' => 'approved']);
         $this->assertDatabaseHas('users', ['email' => DemoSeeder::PENDING_COURIER_EMAIL, 'status' => 'pending']);
         $this->assertDatabaseHas('users', ['email' => DemoSeeder::PENDING_OWNER_EMAIL, 'status' => 'pending']);
+    }
+
+    public function test_orders_that_ended_badly_say_who_decided_and_why(): void
+    {
+        $this->seed(DemoSeeder::class);
+
+        foreach ([OrderStatus::Cancelled, OrderStatus::Rejected, OrderStatus::Failed] as $status) {
+            $order = Order::where('status', $status)->firstOrFail();
+
+            $this->assertNotEmpty($order->status_reason, "{$status->value} sin motivo");
+            $this->assertNotNull($order->status_actor);
+        }
     }
 
     public function test_seeded_order_totals_add_up(): void
@@ -91,7 +105,7 @@ class DemoSeederTest extends TestCase
 
         $this->assertSame(7, User::count());
         $this->assertSame(3, Restaurant::count());
-        $this->assertSame(6, Order::count());
+        $this->assertSame(8, Order::count());
     }
 
     public function test_it_does_nothing_in_production(): void

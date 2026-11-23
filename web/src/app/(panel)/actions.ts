@@ -18,17 +18,41 @@ function failTo(path: string, error: unknown): never {
   throw error;
 }
 
+/**
+ * Builds the explanation shown to the customer from the preset the restaurant
+ * picked and an optional detail. "Otro" has no meaning without the detail.
+ */
+function reasonFrom(formData: FormData): { reason?: string; error?: string } {
+  const preset = String(formData.get("reason") ?? "").trim();
+  const detail = String(formData.get("detail") ?? "").trim();
+
+  if (!preset) {
+    return {};
+  }
+  if (preset === "Otro") {
+    return detail ? { reason: detail } : { error: "Escribe el motivo." };
+  }
+
+  return { reason: detail ? `${preset}: ${detail}` : preset };
+}
+
 export async function updateOrderStatus(formData: FormData): Promise<void> {
   const orderId = Number(formData.get("orderId"));
   const status = String(formData.get("status"));
+  const { reason, error } = reasonFrom(formData);
+
+  if (error) {
+    redirect(`/orders?error=${encodeURIComponent(error)}`);
+  }
 
   try {
-    await apiFetch(`/orders/${orderId}/status`, { method: "PATCH", body: { status } });
+    await apiFetch(`/orders/${orderId}/status`, { method: "PATCH", body: { status, reason } });
   } catch (error) {
     failTo("/orders", error);
   }
 
   revalidatePath("/orders");
+  redirect("/orders");
 }
 
 export async function saveRestaurant(_previous: SaveState, formData: FormData): Promise<SaveState> {
@@ -81,6 +105,7 @@ export async function createMenuItem(formData: FormData): Promise<void> {
   }
 
   revalidatePath("/menu");
+  redirect(back);
 }
 
 export async function updateMenuItem(formData: FormData): Promise<void> {
@@ -101,6 +126,7 @@ export async function updateMenuItem(formData: FormData): Promise<void> {
   }
 
   revalidatePath("/menu");
+  redirect(back);
 }
 
 export async function toggleMenuItem(formData: FormData): Promise<void> {
@@ -117,6 +143,7 @@ export async function toggleMenuItem(formData: FormData): Promise<void> {
   }
 
   revalidatePath("/menu");
+  redirect(back);
 }
 
 export async function deleteMenuItem(formData: FormData): Promise<void> {
@@ -130,4 +157,5 @@ export async function deleteMenuItem(formData: FormData): Promise<void> {
   }
 
   revalidatePath("/menu");
+  redirect(back);
 }

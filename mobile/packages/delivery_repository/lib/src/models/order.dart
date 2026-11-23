@@ -11,7 +11,10 @@ enum OrderStatus {
   pickedUp('picked_up'),
   delivered('delivered'),
   rejected('rejected'),
-  cancelled('cancelled');
+  cancelled('cancelled'),
+
+  /// The courier had the order but could not hand it over.
+  failed('failed');
 
   const OrderStatus(this.value);
 
@@ -23,7 +26,23 @@ enum OrderStatus {
 
   /// No further changes are possible.
   bool get isFinal =>
-      this == delivered || this == rejected || this == cancelled;
+      this == delivered ||
+      this == rejected ||
+      this == cancelled ||
+      this == failed;
+}
+
+/// Who moved an order to its current status. [system] is an automatic rule
+/// (a timeout) or an account suspension.
+enum OrderActor {
+  customer,
+  restaurant,
+  courier,
+  system;
+
+  static OrderActor? fromJson(String? value) => value == null
+      ? null
+      : OrderActor.values.firstWhere((actor) => actor.name == value);
 }
 
 class OrderItem extends Equatable {
@@ -61,6 +80,8 @@ class Order extends Equatable {
     required this.totalCents,
     required this.deliveryAddress,
     required this.createdAt,
+    this.statusReason,
+    this.statusActor,
     this.notes,
     this.restaurant,
     this.customer,
@@ -77,6 +98,8 @@ class Order extends Equatable {
     deliveryAddress: json['delivery_address'] as String,
     notes: json['notes'] as String?,
     createdAt: DateTime.parse(json['created_at'] as String),
+    statusReason: json['status_reason'] as String?,
+    statusActor: OrderActor.fromJson(json['status_actor'] as String?),
     restaurant: _optional(json['restaurant'], Restaurant.fromJson),
     customer: _optional(json['customer'], User.fromJson),
     courier: _optional(json['courier'], User.fromJson),
@@ -94,6 +117,10 @@ class Order extends Equatable {
   final String deliveryAddress;
   final String? notes;
   final DateTime createdAt;
+
+  /// Why the order was rejected, cancelled or not delivered.
+  final String? statusReason;
+  final OrderActor? statusActor;
   final Restaurant? restaurant;
   final User? customer;
   final User? courier;
@@ -109,6 +136,8 @@ class Order extends Equatable {
     deliveryAddress,
     notes,
     createdAt,
+    statusReason,
+    statusActor,
     restaurant,
     customer,
     courier,

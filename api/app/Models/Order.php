@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\OrderActor;
 use App\Enums\OrderStatus;
 use Database\Factories\OrderFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -23,10 +24,29 @@ class Order extends Model
     {
         return [
             'status' => OrderStatus::class,
+            'status_actor' => OrderActor::class,
+            'status_changed_at' => 'datetime',
+            'available_at' => 'datetime',
+            'claimed_at' => 'datetime',
             'subtotal_cents' => 'integer',
             'delivery_fee_cents' => 'integer',
             'total_cents' => 'integer',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        // Keeps the timeline honest for every save (actions, factories, seeders).
+        // Bulk UPDATE queries bypass this and must set the columns themselves.
+        static::saving(function (Order $order) {
+            if ($order->isDirty('status') || $order->status_changed_at === null) {
+                $order->status_changed_at = now();
+            }
+
+            if ($order->isDirty('status') && $order->status === OrderStatus::Ready) {
+                $order->available_at = now();
+            }
+        });
     }
 
     /**

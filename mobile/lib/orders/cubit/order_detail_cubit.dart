@@ -31,17 +31,40 @@ class OrderDetailCubit extends Cubit<OrderDetailState> {
   }
 
   /// Moves the order to [next]; the API decides if the user may do it.
-  Future<void> updateStatus(OrderStatus next) async {
+  /// [reason] explains an unhappy ending (e.g. a failed delivery).
+  Future<void> updateStatus(OrderStatus next, {String? reason}) async {
     if (state.isUpdating) return;
 
     emit(state.copyWith(isUpdating: true, clearActionError: true));
     try {
-      final order = await _orderRepository.updateStatus(_orderId, next);
+      final order = await _orderRepository.updateStatus(
+        _orderId,
+        next,
+        reason: reason,
+      );
       if (isClosed) return;
       emit(OrderDetailState(status: LoadStatus.success, order: order));
     } on Object catch (error) {
       if (isClosed) return;
       emit(state.copyWith(isUpdating: false, actionError: errorMessage(error)));
+    }
+  }
+
+  /// A courier gives the order back before picking it up. Returns whether it
+  /// worked, so the screen can close itself.
+  Future<bool> release() async {
+    if (state.isUpdating) return false;
+
+    emit(state.copyWith(isUpdating: true, clearActionError: true));
+    try {
+      final order = await _orderRepository.release(_orderId);
+      if (isClosed) return true;
+      emit(OrderDetailState(status: LoadStatus.success, order: order));
+      return true;
+    } on Object catch (error) {
+      if (isClosed) return false;
+      emit(state.copyWith(isUpdating: false, actionError: errorMessage(error)));
+      return false;
     }
   }
 
