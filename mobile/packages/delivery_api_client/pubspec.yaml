@@ -1,0 +1,11 @@
+name: delivery_api_client
+description: HTTP client (data layer) for the SuperApp Delivery API.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.14.0
+
+dependencies: { http: ^1.6.0}
+
+dev_dependencies: {lints: ^6.1.0, mocktail: ^1.0.5, test: ^1.33.0}

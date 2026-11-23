@@ -1,0 +1,13 @@
+name: delivery_repository
+description: Domain models and repositories (auth, restaurants, orders) for SuperApp Delivery.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.14.0
+
+dependencies:
+  delivery_api_client:
+    path: ../delivery_api_client
+  equatable: ^3.0.0
+dev_dependencies: {http: ^1.6.0, lints: ^6.1.0, mocktail: ^1.0.5, test: ^1.33.0}
